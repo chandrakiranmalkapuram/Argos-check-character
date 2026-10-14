@@ -8,10 +8,14 @@ This document describes how to configure **Supabase Magic-Link Authentication**,
 
 - **Server-Authorised Roles:** User roles (`admin`, `moderator`, `user`) are stored in the protected `public.user_roles` PostgreSQL table. The browser client is **never trusted** for role claims.
 - **Self-Elevation Prevention:** Row Level Security on `user_roles` strictly forbids `INSERT`, `UPDATE`, or `DELETE` operations from the client. Users cannot assign or elevate their own roles.
-- **Public Visibility Restrictions:** Public visitors can **only query records where `status = 'approved'`**. Pending and rejected submissions cannot be queried or discovered by anonymous users.
-- **Authenticated Submissions:** Submissions require a verified `auth.uid()`. Unauthenticated submissions are blocked at both the service layer and the PostgreSQL database layer (`submit_voice_confusion_report` RPC).
-- **User Privacy & Ownership:** Authenticated users can view their own submissions and moderation statuses (`user_id = auth.uid()`), but cannot view pending or rejected reports submitted by other users.
-- **Protected Moderation:** Only server-verified moderators and administrators can view the pending queue, approve reports, or reject reports with feedback notes.
+- **Public Report Submissions (No Login Required):** Any public visitor can submit a voice confusion report without creating an account or logging in.
+- **Strict Pending Review Status:** Every public submission is strictly forced to `status = 'pending'` via PostgreSQL RLS `WITH CHECK (status = 'pending')`. Public visitors can never insert approved or rejected records.
+- **Public Visibility Restrictions:** Public visitors can **only query records where `status = 'approved'`**. Pending and rejected submissions cannot be queried, discovered, or inspected by anonymous visitors.
+- **Public Action Restrictions:** Public visitors have **no UPDATE or DELETE privileges**. They cannot approve, reject, modify statuses, or delete reports.
+- **Anti-Spam & Rate Limiting:** Anonymous submissions are protected by invisible honeypot field detection in the client and database-level `client_hash` rate-limiting (max 5 submissions per 10-minute window).
+- **Future Approved-User Extensibility:** Includes an extensible `is_submission_allowed()` PostgreSQL function hook, preparing the database for a future allowlist or approved-user access system without breaking schema changes.
+- **Optional Ownership & Privacy:** When users choose to sign in, their reports are linked via `user_id = auth.uid()`. Signed-in users can view their own submissions and moderation statuses in "My Reports", but cannot view pending or rejected reports submitted by others.
+- **Protected Moderation:** Only server-verified administrators and moderators can view the pending queue, approve reports, or reject reports with feedback notes.
 - **Service Role Key Security:** The `SUPABASE_SERVICE_ROLE_KEY` is **never exposed in frontend code**. All operations execute using the public anonymous client with PostgreSQL RLS enforcement.
 
 ---
@@ -45,7 +49,13 @@ Run [`supabase/migrations/20261014000001_auth_and_user_roles.sql`](file:///Users
 - Adds `user_id UUID REFERENCES auth.users(id)` ownership column to `voice_confusion_reports`.
 - Creates `user_roles` table with server-side `is_admin()` and `is_moderator()` functions.
 - Configures RLS policies for public approved reading, user-owned submission reading, and moderator-only status updates.
-- Updates `submit_voice_confusion_report` to require authentication.
+
+### Migration 3: Public Report Submissions & Pending Review Enforcement
+Run [`supabase/migrations/20261014000002_allow_public_submissions.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000002_allow_public_submissions.sql)
+- Updates RLS policy to allow public/anonymous report inserts with mandatory `status = 'pending'`.
+- Updates `submit_voice_confusion_report` RPC to accept submissions without requiring `auth.uid()`.
+- Implements `client_hash` rate limiting for unauthenticated visitors.
+- Adds `is_submission_allowed()` hook for future allowlist extensibility.
 
 ---
 

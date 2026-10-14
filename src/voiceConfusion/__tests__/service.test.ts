@@ -29,23 +29,85 @@ describe('Voice Confusion Service Layer & Authentication Requirements', () => {
     resetTestStore();
   });
 
-  describe('Unauthenticated Submissions & Access Gates', () => {
-    it('strictly rejects report submissions when unauthenticated', async () => {
-      setTestCurrentUser(null); // Unauthenticated visitor
+  describe('Public Unauthenticated Submissions & Access Rules', () => {
+    it('allows a visitor to submit a report without logging in', async () => {
+      setTestCurrentUser(null); // Anonymous visitor
 
       const response = await submitVoiceConfusionReport({
         heard_location: '20BK',
         actual_location: '20KB',
         reason: 'headset_misrecognition',
-        details: 'Attempting submission while unauthenticated.'
+        details: 'Submitted by public visitor without logging in.'
       });
 
-      expect(response.success).toBe(false);
-      expect(response.error).toContain('Authentication required');
-      expect(response.report).toBeUndefined();
+      expect(response.success).toBe(true);
+      expect(response.report).toBeDefined();
+      expect(response.report?.heard_location).toBe('20BK');
+      expect(response.report?.actual_location).toBe('20KB');
+      expect(response.report?.user_id).toBeNull();
+      expect(response.message).toContain('pending admin review');
     });
 
-    it('returns empty array when unauthenticated user tries to fetch own reports', async () => {
+    it('ensures every new public submission receives status = pending', async () => {
+      setTestCurrentUser(null);
+
+      const response = await submitVoiceConfusionReport({
+        heard_location: '30BK',
+        actual_location: '30KB',
+        reason: 'similar_sounding'
+      });
+
+      expect(response.success).toBe(true);
+      expect(response.report?.status).toBe('pending');
+    });
+
+    it('enforces rate-limiting on anonymous public submissions from the same client', async () => {
+      setTestCurrentUser(null);
+      const testHash = 'test-client-public-ip-1';
+
+      // 5 submissions should succeed
+      for (let i = 1; i <= 5; i++) {
+        const res = await submitVoiceConfusionReport({
+          heard_location: `1${i}AA`,
+          actual_location: `1${i}BB`,
+          reason: 'other',
+          client_hash: testHash
+        });
+        expect(res.success).toBe(true);
+      }
+
+      // 6th attempt should be blocked
+      const blockedRes = await submitVoiceConfusionReport({
+        heard_location: '99AA',
+        actual_location: '99BB',
+        reason: 'other',
+        client_hash: testHash
+      });
+
+      expect(blockedRes.success).toBe(false);
+      expect(blockedRes.error).toContain('Submission limit reached');
+    });
+
+    it('detects duplicate submissions from anonymous visitors', async () => {
+      setTestCurrentUser(null);
+
+      const res1 = await submitVoiceConfusionReport({
+        heard_location: '12AB',
+        actual_location: '12BA',
+        reason: 'similar_sounding'
+      });
+      expect(res1.success).toBe(true);
+
+      const res2 = await submitVoiceConfusionReport({
+        heard_location: '  12ab  ',
+        actual_location: '12ba',
+        reason: 'similar_sounding'
+      });
+      expect(res2.success).toBe(false);
+      expect(res2.is_duplicate).toBe(true);
+    });
+
+    it('returns empty array when unauthenticated user queries user reports', async () => {
       setTestCurrentUser(null);
       const reports = await fetchUserReports();
       expect(reports).toEqual([]);
@@ -71,7 +133,7 @@ describe('Voice Confusion Service Layer & Authentication Requirements', () => {
       expect(response.report?.user_id).toBe(standardUser.id);
       expect(response.report?.heard_location).toBe('20BK');
       expect(response.report?.actual_location).toBe('20KB');
-      expect(response.message).toContain('pending review');
+      expect(response.message).toContain('pending admin review');
     });
 
     it('allows a signed-in user to see their own submitted reports and moderation statuses', async () => {

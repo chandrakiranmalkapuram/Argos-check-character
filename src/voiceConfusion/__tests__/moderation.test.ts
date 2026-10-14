@@ -175,6 +175,58 @@ describe('Protected Moderation Workflow & Server-Authorised Roles', () => {
       expect(myRejected?.moderator_notes).toContain('Does not meet stockroom');
     });
 
+    it('verifies the full public submission and admin moderation lifecycle', async () => {
+      // 1. A visitor can submit a report without logging in
+      setTestCurrentUser(null); // Anonymous visitor
+      const subRes = await submitVoiceConfusionReport({
+        heard_location: '72ZK',
+        actual_location: '72KZ',
+        reason: 'similar_sounding',
+        details: 'Anonymous field report from picker without login'
+      });
+      expect(subRes.success).toBe(true);
+      expect(subRes.report).toBeDefined();
+      const reportId = subRes.report!.id;
+
+      // 2. A new report receives 'pending' status
+      expect(subRes.report?.status).toBe('pending');
+      expect(subRes.report?.user_id).toBeNull();
+
+      // 3. A visitor cannot approve their own report or change its status
+      const unauthorizedUpdate = await updateReportModerationStatus(reportId, 'approved');
+      expect(unauthorizedUpdate.success).toBe(false);
+      expect(unauthorizedUpdate.error).toContain('Unauthorized');
+
+      // 4. Public search returns approved reports only (pending report is hidden)
+      const publicSearchBefore = await searchApprovedReports({ query: '72ZK' });
+      expect(publicSearchBefore.reports).toHaveLength(0);
+
+      // 5. An unauthorised visitor cannot access the admin dashboard or pending reports
+      await expect(fetchModerationQueue('pending')).rejects.toThrow(/Unauthorized/i);
+
+      // 6. Authorised admin account can approve and reject reports
+      setTestCurrentUser(adminUser); // Log in as admin
+      const adminQueue = await fetchModerationQueue('pending');
+      const pendingItem = adminQueue.find(r => r.id === reportId);
+      expect(pendingItem).toBeDefined();
+      expect(pendingItem?.status).toBe('pending');
+
+      // Admin approves the report
+      const approveRes = await updateReportModerationStatus(
+        reportId,
+        'approved',
+        'Verified in Argos stockroom aisle 72.'
+      );
+      expect(approveRes.success).toBe(true);
+
+      // Now public search returns the newly approved report
+      setTestCurrentUser(null);
+      const publicSearchAfter = await searchApprovedReports({ query: '72ZK' });
+      expect(publicSearchAfter.reports).toHaveLength(1);
+      expect(publicSearchAfter.reports[0].id).toBe(reportId);
+      expect(publicSearchAfter.reports[0].status).toBe('approved');
+    });
+
     it('handles magic-link sign in and session persistence simulation', async () => {
       // Sign in via magic link
       const magicRes = await signInWithMagicLink('moderator@stockroom.test');

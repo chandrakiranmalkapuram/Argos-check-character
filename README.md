@@ -10,7 +10,7 @@ Voice-directed picking headsets in high-volume stockrooms (such as Argos) prompt
 - **RFC Location Calculation**: Regional Fulfilment Centre 2-digit algorithm (base 45 + weighted alphabet indices modulo 99).
 - **Reverse Lookup**: Inverted index searching 67,600 store locations (00AA–99ZZ) grouped by aisle for any phonetic check character.
 - **Voice Mistake Alerts**: Identifies confusable locations that share the same check character due to single-letter phonetic errors (e.g., JEWELLERY heard as ZERO) or swapped adjacent digits.
-- **Voice Confusion Risk System**: Shared, persistent warehouse misrecognition reporting backed by Supabase PostgreSQL with duplicate prevention, public approved-only search, and a protected moderation workflow.
+- **Voice Confusion Risk System**: Shared, persistent warehouse misrecognition reporting backed by Supabase PostgreSQL with open public submissions (no login required), automatic pending review status, duplicate prevention, public approved-only search, and an authenticated admin moderation workflow.
 - **Phonetic Pronunciation & Audio**: Displays voice picking phrasing (e.g., `"ONE ZERO ALPHA KILO"`) with one-click Web Speech audio playback.
 - **Recent Search History**: Persisted in local browser storage (`localStorage`) with one-click reload and deletion.
 - **Independent Clean-Room Architecture**: Pure calculation logic in `src/logic/` completely decoupled from React UI components.
@@ -19,7 +19,7 @@ Voice-directed picking headsets in high-volume stockrooms (such as Argos) prompt
 ```
 check-character-by-chandra/
 ├── supabase/
-│   └── migrations/          # PostgreSQL migration with RLS & duplicate constraints
+│   └── migrations/          # PostgreSQL migrations (Base schema, Roles & RLS, Public submissions)
 ├── src/
 │   ├── assets/              # Original branding vector assets
 │   ├── components/          # Core React UI components

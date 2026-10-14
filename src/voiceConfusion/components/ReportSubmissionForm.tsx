@@ -8,7 +8,7 @@ import { ReportPreviewModal } from './ReportPreviewModal.tsx';
 
 interface ReportSubmissionFormProps {
   currentUser: AuthUser | null;
-  onOpenAuth: () => void;
+  onOpenAuth?: () => void;
   onSuccessSubmission?: () => void;
 }
 
@@ -30,6 +30,8 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
   const [isDuplicateWarning, setIsDuplicateWarning] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const [honeyTrap, setHoneyTrap] = useState('');
+
   // Ambiguity detection for character clarity (O vs 0, I vs 1)
   const heardAmbiguity = detectAmbiguousCharacters(heardLocation);
   const actualAmbiguity = detectAmbiguousCharacters(actualLocation);
@@ -39,6 +41,12 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
     setServerError(null);
     setIsDuplicateWarning(false);
     setSuccessMessage(null);
+
+    // Anti-spam honeypot detection
+    if (honeyTrap) {
+      setServerError('Spam submission detected.');
+      return;
+    }
 
     const validation = validateReportSubmission({
       heard_location: heardLocation,
@@ -80,7 +88,7 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
       setIsPreviewOpen(false);
       setSuccessMessage(
         response.message ||
-          'Report submitted successfully. Your report is currently pending review and is not yet verified.'
+          'Report submitted successfully. Your report is currently pending admin review and will appear in public search results once approved.'
       );
 
       // Reset form
@@ -88,11 +96,8 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
       setActualLocation('');
       setReason('similar_sounding');
       setDetails('');
+      setHoneyTrap('');
       setErrors({});
-
-      if (onSuccessSubmission) {
-        onSuccessSubmission();
-      }
     } catch (err: any) {
       setServerError(err?.message || 'An unexpected error occurred.');
       setIsPreviewOpen(false);
@@ -100,28 +105,6 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
       setIsSubmitting(false);
     }
   };
-
-  if (!currentUser) {
-    return (
-      <div className="vc-card">
-        <div className="vc-state-box">
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          <div>
-            <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--navy-900)' }}>Sign In Required</h3>
-            <p style={{ margin: 0, fontSize: '0.875rem' }}>
-              To prevent abuse and track review status, authentication is required to submit a report.
-            </p>
-          </div>
-          <button type="button" className="vc-btn vc-btn-primary" onClick={onOpenAuth}>
-            Sign In with Magic Link to Submit
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="vc-card">
@@ -143,9 +126,34 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
             Help fellow stockroom pickers identify locations easily misheard by voice headsets.
           </p>
         </div>
-        <div className="vc-badge vc-badge-community" style={{ padding: '0.3rem 0.6rem' }}>
-          <span>Signed in as <strong>{currentUser.email}</strong></span>
-        </div>
+        {currentUser ? (
+          <div className="vc-badge vc-badge-community" style={{ padding: '0.3rem 0.6rem' }}>
+            <span>Signed in as <strong>{currentUser.email}</strong></span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div className="vc-badge vc-badge-pending" style={{ padding: '0.3rem 0.6rem', background: 'var(--slate-100)', color: 'var(--slate-700)', borderColor: 'var(--slate-300)' }}>
+              <span>Public Submission (No login required)</span>
+            </div>
+            {onOpenAuth && (
+              <button
+                type="button"
+                onClick={onOpenAuth}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--blue-600)',
+                  fontSize: '0.75rem',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                Sign in to link submissions
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Success Notification */}
@@ -155,15 +163,33 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
           style={{
             background: 'var(--emerald-50)',
             borderColor: 'var(--emerald-500)',
-            marginBottom: '1.25rem'
+            marginBottom: '1.25rem',
+            padding: '1rem',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.75rem'
           }}
         >
-          <svg className="vc-disclaimer-icon" style={{ color: 'var(--emerald-600)' }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg className="vc-disclaimer-icon" style={{ color: 'var(--emerald-600)', marginTop: '2px' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          <div>
-            <strong style={{ color: 'var(--emerald-700)' }}>Report Received:</strong>{' '}
-            {successMessage}
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--emerald-800)', fontSize: '0.9375rem' }}>
+              Report Received — Awaiting Admin Review
+            </h4>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--emerald-900)', lineHeight: 1.4 }}>
+              {successMessage}
+            </p>
+            {currentUser && onSuccessSubmission && (
+              <button
+                type="button"
+                className="vc-btn vc-btn-secondary"
+                style={{ marginTop: '0.75rem', fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                onClick={onSuccessSubmission}
+              >
+                Track in My Reports &rarr;
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -202,6 +228,20 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
       )}
 
       <form onSubmit={handleOpenPreview} noValidate>
+        {/* Anti-spam honeypot (hidden from human users) */}
+        <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
+          <label htmlFor="form-honeypot-field">Leave this empty</label>
+          <input
+            id="form-honeypot-field"
+            type="text"
+            name="system_check"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeyTrap}
+            onChange={e => setHoneyTrap(e.target.value)}
+          />
+        </div>
+
         {/* Dual Location Inputs */}
         <div className="vc-location-pair-inputs">
           {/* Heard Location */}

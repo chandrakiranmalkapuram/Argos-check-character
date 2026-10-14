@@ -111,7 +111,7 @@ npm run lint
 
 ---
 
-### B. Voice Confusion Risk Reporting & Authentication
+### B. Voice Confusion Risk Reporting & Public Submissions
 
 1. Click the **Voice Confusion Risk** tab at the top of the app.
 2. **Search Approved Reports (Public Visitor Access - No Sign In Required):**
@@ -120,23 +120,26 @@ npm run lint
      - **Heard:** `J7AZ` &rarr; **Actual:** `07AZ` (Reason: *Similar-sounding characters*).
    - Clear and type `07AZ`. The same report is found, verifying dual-field indexing.
    - Public visitors can search and view all approved reports freely without an account.
-3. **Sign In with Email Magic Link:**
-   - Click **Sign In (Magic Link)** in the top right header or feature banner.
+3. **Submit a Report (Open to Everyone — No Login Required):**
+   - Click the **Submit a Report** tab.
+   - Anyone can submit a report immediately without creating an account or logging in.
+   - Enter Heard Location (e.g. `20BK`) and Actual Location (e.g. `20KB`).
+   - Select a reason and add optional operational details.
+   - Click **Preview Report**, review the details, and click **Confirm and Submit Report**.
+   - A clear success confirmation informs you that the report has been received and is awaiting administrator review.
+   - Every public submission automatically receives `pending` status and will only appear in public search results once approved by an administrator.
+   - Protected by invisible anti-spam honeypot detection and client rate limiting.
+4. **Optional Email Magic Link Sign In & "My Reports":**
+   - Click **Sign In (Magic Link)** in the top right header if you wish to link submissions to an email.
    - Enter your email address (e.g. `picker@store.co.uk`) and click **Send Magic Link**.
    - In offline/demo mode, sign-in completes immediately. In live Supabase mode, an email is dispatched.
-4. **Submit a Report (Authentication Required):**
-   - If not signed in, the submission tab shows a protected sign-in gate.
-   - Once signed in, enter Heard Location (e.g. `20BK`) and Actual Location (e.g. `20KB`).
-   - Select a reason and add optional operational details.
-   - Click **Preview Report**, then **Confirm and Submit Report**.
-5. **My Reports View:**
-   - Click the **My Reports** tab to see all reports you have submitted.
-   - Shows moderation statuses (**Pending Review**, **Approved**, or **Rejected**) and any feedback notes left by stockroom moderators.
-6. **Test Duplicate Prevention:**
+   - Click the **My Reports** tab to see your personal submissions and their moderation statuses (**Pending Review**, **Approved**, or **Rejected**) along with any moderator feedback notes.
+5. **Test Duplicate Prevention:**
    - Submit the exact same heard location, actual location, and reason again.
    - The server and database layer block duplicate entries with an informative notice.
-7. **Admin Moderation Portal (Protected):**
+6. **Admin Moderation Portal (Protected):**
    - Switch to the **Admin Moderation** tab.
+   - Access is restricted: only authorized admin and moderator accounts can view the queue or change report statuses.
    - Sign in with an authorized account (in demo mode: `admin@stockroom.test` or `moderator@stockroom.test`).
    - Review pending submissions, add optional feedback notes, and click **Approve** or **Reject**.
    - Once approved, the submission is immediately published to public search results.
@@ -149,7 +152,10 @@ The application works immediately out-of-the-box in local demo mode without need
 
 To connect your own shared **Supabase PostgreSQL** database:
 1. Create a Supabase project at [supabase.com](https://supabase.com).
-2. Copy [`supabase/migrations/20261014000000_voice_confusion_reports.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000000_voice_confusion_reports.sql) into the Supabase SQL Editor and run it.
+2. Execute the migrations in sequential order in the Supabase SQL Editor:
+   - [`supabase/migrations/20261014000000_voice_confusion_reports.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000000_voice_confusion_reports.sql) (Base tables, normalisation & duplicate index)
+   - [`supabase/migrations/20261014000001_auth_and_user_roles.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000001_auth_and_user_roles.sql) (User roles & initial RLS)
+   - [`supabase/migrations/20261014000002_allow_public_submissions.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000002_allow_public_submissions.sql) (Public submissions, pending status enforcement & spam rate limiting)
 3. Create a `.env` file in the project root:
    ```bash
    VITE_SUPABASE_URL=https://your-project.supabase.co

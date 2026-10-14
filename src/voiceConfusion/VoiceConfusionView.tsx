@@ -88,7 +88,7 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
                 type="button"
                 className="vc-btn vc-btn-primary"
                 style={{ padding: '0.45rem 0.9rem', fontSize: '0.8125rem' }}
-                onClick={() => handleOpenAuth('Sign in with your email to submit reports and track your review status.')}
+                onClick={() => handleOpenAuth('Sign in with your email to track your submitted reports or access admin moderation.')}
               >
                 Sign In (Magic Link)
               </button>
@@ -195,7 +195,7 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
       {activeTab === 'submit' && (
         <ReportSubmissionForm
           currentUser={currentUser}
-          onOpenAuth={() => handleOpenAuth('Sign in with your email to submit a voice confusion report.')}
+          onOpenAuth={() => handleOpenAuth('Sign in with your email to track your submitted reports.')}
           onSuccessSubmission={() => setActiveTab('my-reports')}
         />
       )}

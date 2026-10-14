@@ -280,21 +280,15 @@ export function onAuthStateChange(
 
 /**
  * Submits a new voice confusion report.
- * REQUIREMENT: Authentication is strictly required. Unauthenticated submissions are rejected.
+ * Public visitors can submit reports without creating an account or logging in.
+ * All submissions automatically receive a 'pending' status and require administrator review.
  */
 export async function submitVoiceConfusionReport(
   payload: ReportSubmissionPayload
 ): Promise<SubmissionResponse> {
-  // Step 1: Verify authentication
   const currentUser = await getCurrentUser();
-  if (!currentUser) {
-    return {
-      success: false,
-      error: 'Authentication required. Please sign in with your email to submit a voice confusion report.'
-    };
-  }
 
-  // Step 2: Validate input format
+  // Validate input format
   const validation = validateReportSubmission(payload);
   if (!validation.isValid || !validation.cleanedPayload) {
     const firstError = Object.values(validation.errors)[0] || 'Invalid submission data.';
@@ -306,6 +300,7 @@ export async function submitVoiceConfusionReport(
 
   const { heard_location, actual_location, reason, details } = validation.cleanedPayload;
   const clientHash = payload.client_hash || getClientHash();
+  const rateLimitKey = currentUser ? currentUser.id : clientHash;
 
   // If Supabase is configured, use the PostgreSQL RPC function
   if (isSupabaseConfigured && supabase) {
@@ -335,7 +330,7 @@ export async function submitVoiceConfusionReport(
           report: res.id
             ? {
                 id: String(res.id),
-                user_id: currentUser.id,
+                user_id: currentUser ? currentUser.id : null,
                 heard_location: String(res.heard_location),
                 actual_location: String(res.actual_location),
                 reason: res.reason as any,
@@ -356,9 +351,9 @@ export async function submitVoiceConfusionReport(
   }
 
   // --- Local / Offline Fallback Mode ---
-  // Rate limiting (max 5 per 10 minutes)
+  // Rate limiting (max 5 per 10 minutes per user or client fingerprint)
   const now = Date.now();
-  const timestamps = (localRateLimitMap.get(currentUser.id) || []).filter(t => now - t < 10 * 60 * 1000);
+  const timestamps = (localRateLimitMap.get(rateLimitKey) || []).filter(t => now - t < 10 * 60 * 1000);
   if (timestamps.length >= 5) {
     return {
       success: false,
@@ -366,7 +361,7 @@ export async function submitVoiceConfusionReport(
     };
   }
   timestamps.push(now);
-  localRateLimitMap.set(currentUser.id, timestamps);
+  localRateLimitMap.set(rateLimitKey, timestamps);
 
   // Duplicate detection
   const existingReport = localReportsStore.find(
@@ -383,10 +378,10 @@ export async function submitVoiceConfusionReport(
     };
   }
 
-  // Insert report with default 'pending' status owned by the authenticated user
+  // Insert report with default 'pending' status (user_id is assigned if authenticated)
   const newReport: VoiceConfusionReport = {
     id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-    user_id: currentUser.id,
+    user_id: currentUser ? currentUser.id : null,
     heard_location,
     actual_location,
     reason,
@@ -400,7 +395,7 @@ export async function submitVoiceConfusionReport(
 
   return {
     success: true,
-    message: 'Report submitted successfully. Your report is currently pending review and is not yet verified.',
+    message: 'Report submitted successfully. Your report is currently pending admin review and will appear in public search results once approved.',
     report: newReport
   };
 }

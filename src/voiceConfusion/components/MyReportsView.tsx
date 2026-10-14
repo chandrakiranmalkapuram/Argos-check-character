@@ -69,7 +69,7 @@ export const MyReportsView: React.FC<MyReportsViewProps> = ({
     }
   };
 
-  // If not signed in: show sign in prompt
+  // If not signed in: show sign in prompt for tracking
   if (!currentUser) {
     return (
       <div className="vc-card">
@@ -79,14 +79,19 @@ export const MyReportsView: React.FC<MyReportsViewProps> = ({
             <circle cx="12" cy="7" r="4" />
           </svg>
           <div>
-            <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--navy-900)' }}>Sign In to View Your Reports</h3>
+            <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--navy-900)' }}>Track Your Submissions</h3>
             <p style={{ margin: 0, fontSize: '0.875rem' }}>
-              Sign in with your email to view your submitted reports and track their moderation status.
+              Submitting reports is open to everyone without login. If you would like to track the review status of your personal submissions across sessions, sign in with your email.
             </p>
           </div>
-          <button type="button" className="vc-btn vc-btn-primary" onClick={onOpenAuth}>
-            Sign In with Magic Link
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button type="button" className="vc-btn vc-btn-primary" onClick={onOpenAuth}>
+              Sign In with Magic Link
+            </button>
+            <button type="button" className="vc-btn vc-btn-secondary" onClick={onRequestSubmitNew}>
+              Submit a Report (No Login Needed)
+            </button>
+          </div>
         </div>
       </div>
     );
