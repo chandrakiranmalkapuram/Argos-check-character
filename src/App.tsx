@@ -158,9 +158,18 @@ export function App() {
               <>
                 {/* Dual Store & RFC Results (e.g. for 4-letter locations like ABCD) */}
                 {evaluation.storeResult && evaluation.rfcResult ? (
-                  <div className="dual-results-grid">
-                    <ResultCard result={evaluation.storeResult} />
-                    <ResultCard result={evaluation.rfcResult} />
+                  <div className="dual-results-wrapper">
+                    <div className="dual-results-banner" role="status">
+                      <div className="dual-banner-badge">Dual System Comparison</div>
+                      <p className="dual-banner-text">
+                        <strong>4-Letter Location Detected:</strong> This code is used in both systems with different check character algorithms.
+                        <strong> Store</strong> uses a NATO word (e.g. <em>{evaluation.storeResult.checkChar}</em>), while <strong>RFC</strong> uses two spoken digits (e.g. <em>{evaluation.rfcResult.checkChar}</em>).
+                      </p>
+                    </div>
+                    <div className="dual-results-grid">
+                      <ResultCard result={evaluation.storeResult} />
+                      <ResultCard result={evaluation.rfcResult} />
+                    </div>
                   </div>
                 ) : evaluation.storeResult ? (
                   <ResultCard result={evaluation.storeResult} />

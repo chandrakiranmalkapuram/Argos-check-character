@@ -94,7 +94,7 @@ export function evaluateQuery(rawInput: string, selectedMode: CheckMode): Evalua
       storeResult: store,
       rfcResult: rfc,
       similarLocations: similar,
-      guidance: '4-letter location: displaying both Store and RFC check characters.',
+      guidance: `4-letter code: Store uses NATO phonetic word (${store.checkChar}), RFC uses two spoken digits (${rfc.checkChar}).`,
       hasResults: true
     };
   }

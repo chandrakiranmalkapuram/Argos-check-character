@@ -1,4 +1,4 @@
-import { NATO_PHONETIC_ALPHABET, RETURNS_ALIASES, FIXED_CHECK_CHARACTERS } from './constants.ts';
+import { NATO_PHONETIC_ALPHABET, RETURNS_ALIASES, FIXED_CHECK_CHARACTERS, MODE_INPUT_CONFIG } from './constants.ts';
 import type { CheckMode, ValidationState } from './types.ts';
 
 /**
@@ -13,7 +13,7 @@ export function validateAndClassifyInput(input: string, activeMode: CheckMode): 
       isValid: false,
       detectedMode: activeMode,
       formattedInput: '',
-      guidanceMessage: 'Enter a shelf location (e.g. 10AK, J1PG, ABCD) or a NATO word for reverse lookup.'
+      guidanceMessage: MODE_INPUT_CONFIG[activeMode]?.helperText ?? 'Enter a shelf location code to automatically detect the calculation type.'
     };
   }
 

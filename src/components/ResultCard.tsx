@@ -10,6 +10,9 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
 
+  const isStore = result.label === 'Store' || result.kind === 'store';
+  const isRfc = result.label === 'RFC' || result.kind === 'rfc';
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(result.checkChar);
@@ -24,7 +27,10 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
     if (!('speechSynthesis' in window)) return;
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(result.spokenText);
+    const speechText = result.isValid
+      ? `Location: ${result.spokenText}. Check character: ${result.checkChar}.`
+      : result.spokenText;
+    const utterance = new SpeechSynthesisUtterance(speechText);
     utterance.rate = 0.9;
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
@@ -33,10 +39,28 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
   };
 
   return (
-    <div className="result-card fade-in" role="region" aria-label={`${result.label ?? 'Calculated'} Check Character Result`}>
+    <div
+      className={`result-card ${isStore ? 'store-card' : ''} ${isRfc ? 'rfc-card' : ''} fade-in`}
+      role="region"
+      aria-label={`${result.label ?? 'Calculated'} Check Character Result`}
+    >
       <div className="result-header">
         <span className="result-badge">
-          {result.label ? `${result.label} Calculation` : 'Verified Check Character'}
+          {isStore ? (
+            <>
+              <span className="badge-system-tag">🏪 Retail Store</span>
+              <span className="badge-divider">&bull;</span>
+              <span>Modulo 26</span>
+            </>
+          ) : isRfc ? (
+            <>
+              <span className="badge-system-tag">🏢 Fulfilment Centre (RFC)</span>
+              <span className="badge-divider">&bull;</span>
+              <span>Modulo 99</span>
+            </>
+          ) : (
+            <span>{result.label ? `${result.label} Calculation` : 'Verified Check Character'}</span>
+          )}
         </span>
 
         <div className="result-actions">
@@ -46,7 +70,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
               className="action-btn"
               onClick={handleSpeak}
               aria-label="Listen to spoken headset pronunciation"
-              title="Speak phrase"
+              title="Speak phrase and check character"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -84,14 +108,27 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
       </div>
 
       <div className="check-character-display">
-        <div className="check-char-title">Check Character</div>
+        <div className="check-char-title">
+          {isStore
+            ? 'Store Check Character (Phonetic Word)'
+            : isRfc
+            ? 'RFC Check Character (Spoken Digits)'
+            : 'Check Character'}
+        </div>
         <div className="check-char-value" data-testid="check-character-display">
           {result.checkChar}
+        </div>
+        <div className="check-char-format-hint">
+          {isStore
+            ? 'NATO Phonetic Letter (A–Z)'
+            : isRfc
+            ? 'Two-Digit Spoken Number (00–98)'
+            : 'Verification Character'}
         </div>
       </div>
 
       <div className="spoken-text-container">
-        <span className="spoken-label">Headset Voice Phrase</span>
+        <span className="spoken-label">Location Readout to Headset</span>
         <span className="spoken-phrase">"{result.spokenText}"</span>
       </div>
 

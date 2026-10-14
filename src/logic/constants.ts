@@ -73,3 +73,29 @@ export const STORE_PREFIX_MAP: Readonly<Record<string, string>> = {
   CA: 'CASH OFFICE',
   CP: 'COLLECTION POINT'
 };
+
+import type { CheckMode } from './types.ts';
+
+export interface ModeInputConfig {
+  placeholder: string;
+  helperText: string;
+}
+
+export const MODE_INPUT_CONFIG: Record<CheckMode, ModeInputConfig> = {
+  auto: {
+    placeholder: 'E.G. 10AK',
+    helperText: 'Enter a shelf location code to automatically detect the calculation type.'
+  },
+  store: {
+    placeholder: 'E.G. 07AZ',
+    helperText: 'Enter a shelf location code for Store check character calculation.'
+  },
+  rfc: {
+    placeholder: 'E.G. ABCD',
+    helperText: 'Enter a shelf location code for RFC check character calculation.'
+  },
+  reverse: {
+    placeholder: 'E.G. NOVEMBER',
+    helperText: 'Enter a NATO phonetic word to find its corresponding character or supported code.'
+  }
+};
