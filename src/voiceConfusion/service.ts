@@ -178,6 +178,36 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return localAuthUser;
 }
 
+export const DEFAULT_AUTH_REDIRECT_URL = 'https://chandrakiran.dev/checkcharacter/';
+
+/**
+ * Resolves an explicit, safe redirect URL for Supabase magic-link authentication.
+ * Uses https://chandrakiran.dev/checkcharacter/ when no redirect URL is supplied,
+ * avoiding generic window.location.href fallbacks.
+ * Preserves existing return behavior for Cloudflare Pages and local development.
+ */
+export function getAuthRedirectUrl(redirectTo?: string): string {
+  if (redirectTo) {
+    return redirectTo;
+  }
+
+  if (typeof window !== 'undefined' && window.location) {
+    const { origin, hostname } = window.location;
+
+    // Preserve existing Cloudflare Pages deployment return behavior
+    if (hostname.endsWith('pages.dev')) {
+      return origin;
+    }
+
+    // Preserve local development return behavior
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return origin;
+    }
+  }
+
+  return DEFAULT_AUTH_REDIRECT_URL;
+}
+
 /**
  * Signs in using Supabase email magic-link.
  * In production: dispatches an OTP magic link to the user's inbox with emailRedirectTo.
@@ -194,7 +224,7 @@ export async function signInWithMagicLink(
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const targetRedirect = redirectTo || window.location.origin;
+      const targetRedirect = getAuthRedirectUrl(redirectTo);
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
         options: {

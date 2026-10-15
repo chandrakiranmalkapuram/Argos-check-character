@@ -4,7 +4,9 @@ import {
   searchApprovedReports,
   fetchUserReports,
   setTestCurrentUser,
-  resetTestStore
+  resetTestStore,
+  getAuthRedirectUrl,
+  DEFAULT_AUTH_REDIRECT_URL
 } from '../service.ts';
 import type { AuthUser } from '../types.ts';
 
@@ -269,6 +271,66 @@ describe('Voice Confusion Service Layer & Authentication Requirements', () => {
       // Must be empty because it is not yet approved
       expect(searchResult.reports).toEqual([]);
       expect(searchResult.totalCount).toBe(0);
+    });
+  });
+
+  describe('Authentication Redirect URL Safety & Portability', () => {
+    it('uses the explicit safe target URL under https://chandrakiran.dev/checkcharacter/ when no redirect is provided', () => {
+      const originalWindow = globalThis.window;
+      // Mock window without specific pages.dev or localhost origin
+      (globalThis as any).window = {
+        location: {
+          origin: 'https://chandrakiran.dev',
+          hostname: 'chandrakiran.dev',
+          href: 'https://chandrakiran.dev/checkcharacter/?utm_source=test#access_token=123'
+        }
+      };
+
+      const redirect = getAuthRedirectUrl();
+      expect(redirect).toBe('https://chandrakiran.dev/checkcharacter/');
+      expect(redirect).toBe(DEFAULT_AUTH_REDIRECT_URL);
+      // Ensure window.location.href was not used
+      expect(redirect).not.toContain('utm_source');
+      expect(redirect).not.toContain('access_token');
+
+      globalThis.window = originalWindow;
+    });
+
+    it('preserves existing return behavior for Cloudflare Pages deployment', () => {
+      const originalWindow = globalThis.window;
+      (globalThis as any).window = {
+        location: {
+          origin: 'https://argos-check-character.pages.dev',
+          hostname: 'argos-check-character.pages.dev',
+          href: 'https://argos-check-character.pages.dev/'
+        }
+      };
+
+      const redirect = getAuthRedirectUrl();
+      expect(redirect).toBe('https://argos-check-character.pages.dev');
+
+      globalThis.window = originalWindow;
+    });
+
+    it('preserves local development return behavior on localhost', () => {
+      const originalWindow = globalThis.window;
+      (globalThis as any).window = {
+        location: {
+          origin: 'http://localhost:5173',
+          hostname: 'localhost',
+          href: 'http://localhost:5173/checkcharacter/'
+        }
+      };
+
+      const redirect = getAuthRedirectUrl();
+      expect(redirect).toBe('http://localhost:5173');
+
+      globalThis.window = originalWindow;
+    });
+
+    it('respects explicitly provided redirect URLs', () => {
+      const customUrl = 'https://chandrakiran.dev/checkcharacter/#my-reports';
+      expect(getAuthRedirectUrl(customUrl)).toBe(customUrl);
     });
   });
 });
