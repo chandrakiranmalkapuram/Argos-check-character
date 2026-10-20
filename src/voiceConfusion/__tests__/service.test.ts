@@ -312,6 +312,22 @@ describe('Voice Confusion Service Layer & Authentication Requirements', () => {
       globalThis.window = originalWindow;
     });
 
+    it('preserves existing return behavior for Cloudflare Workers deployment', () => {
+      const originalWindow = globalThis.window;
+      (globalThis as any).window = {
+        location: {
+          origin: 'https://argos-check-character.chandrakiranmalkapuram2000.workers.dev',
+          hostname: 'argos-check-character.chandrakiranmalkapuram2000.workers.dev',
+          href: 'https://argos-check-character.chandrakiranmalkapuram2000.workers.dev/'
+        }
+      };
+
+      const redirect = getAuthRedirectUrl();
+      expect(redirect).toBe('https://argos-check-character.chandrakiranmalkapuram2000.workers.dev');
+
+      globalThis.window = originalWindow;
+    });
+
     it('preserves local development return behavior on localhost', () => {
       const originalWindow = globalThis.window;
       (globalThis as any).window = {

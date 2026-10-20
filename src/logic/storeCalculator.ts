@@ -159,3 +159,11 @@ export function calculateStoreCheckChar(rawInput: string): CalculationResult {
     isValid: true
   };
 }
+
+/**
+ * Direct check character string getter for a Store shelf location.
+ */
+export function calculateStoreCheckCharacter(rawInput: string): string {
+  return calculateStoreCheckChar(rawInput).checkChar;
+}
+

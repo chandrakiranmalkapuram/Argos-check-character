@@ -3,13 +3,14 @@ import { Header } from './components/Header.tsx';
 import { CalculatorInput } from './components/CalculatorInput.tsx';
 import { ResultCard } from './components/ResultCard.tsx';
 import { SimilarLocationsList } from './components/SimilarLocationsList.tsx';
+import { CandidateSuggestionsList } from './components/CandidateSuggestionsList.tsx';
 import { ReverseLookupView } from './components/ReverseLookupView.tsx';
 import { SearchHistory } from './components/SearchHistory.tsx';
 import { InfoModal } from './components/InfoModal.tsx';
 import { VoiceConfusionView } from './voiceConfusion/VoiceConfusionView.tsx';
 import { AuthModal } from './voiceConfusion/components/AuthModal.tsx';
-import { getCurrentUser, onAuthStateChange, signOutUser } from './voiceConfusion/service.ts';
-import type { AuthUser } from './voiceConfusion/types.ts';
+import { getCurrentUser, onAuthStateChange, signOutUser, getAllActiveReports } from './voiceConfusion/service.ts';
+import type { AuthUser, VoiceConfusionReport } from './voiceConfusion/types.ts';
 import { evaluateQuery } from './logic/index.ts';
 import type { CheckMode } from './logic/types.ts';
 import { useSearchHistory } from './hooks/useSearchHistory.ts';
@@ -22,12 +23,16 @@ export function App() {
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isHeaderAuthOpen, setIsHeaderAuthOpen] = useState(false);
+  const [communityReports, setCommunityReports] = useState<VoiceConfusionReport[]>([]);
 
   useEffect(() => {
     getCurrentUser().then(setCurrentUser);
     const unsubscribe = onAuthStateChange(user => {
       setCurrentUser(user);
     });
+
+    getAllActiveReports().then(setCommunityReports);
+
     return () => unsubscribe();
   }, []);
 
@@ -85,6 +90,7 @@ export function App() {
   const handleOpenVoiceConfusionForLocation = (loc?: string) => {
     setVoiceConfusionQuery(loc || query);
     setActiveAppTab('voice-confusion');
+    getAllActiveReports().then(setCommunityReports);
   };
 
   return (
@@ -104,7 +110,10 @@ export function App() {
             role="tab"
             aria-selected={activeAppTab === 'calculator'}
             className={`app-nav-tab ${activeAppTab === 'calculator' ? 'active' : ''}`}
-            onClick={() => setActiveAppTab('calculator')}
+            onClick={() => {
+              setActiveAppTab('calculator');
+              getAllActiveReports().then(setCommunityReports);
+            }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="4" y="2" width="16" height="20" rx="2" />
@@ -134,7 +143,7 @@ export function App() {
               <line x1="12" y1="19" x2="12" y2="23" />
               <line x1="8" y1="23" x2="16" y2="23" />
             </svg>
-            <span>Voice Confusion Risk</span>
+            <span>Voice Confusion Reference</span>
           </button>
         </nav>
 
@@ -177,7 +186,15 @@ export function App() {
                   <ResultCard result={evaluation.rfcResult} />
                 ) : null}
 
-                {/* Voice Confusion Warnings */}
+                {/* Candidate Suggestions for Voice-Confused / Unreferenced Locations */}
+                <CandidateSuggestionsList
+                  currentLocation={query}
+                  communityReports={communityReports}
+                  onSelectLocation={handleSelectQuery}
+                  onOpenVoiceConfusionReference={handleOpenVoiceConfusionForLocation}
+                />
+
+                {/* Voice Confusion Warnings (Same Check Character Collisions) */}
                 <SimilarLocationsList
                   locations={evaluation.similarLocations}
                   onSelectLocation={handleSelectQuery}
@@ -204,7 +221,7 @@ export function App() {
 
       <footer className="app-footer">
         <div>
-          <strong>Check Character by Chandra</strong> &bull; Version 1.0.0
+          <strong>Check Character by Chandra</strong> &bull; Version 1.1.0
         </div>
         <p className="footer-disclaimer">
           Independent stockroom verification utility. Not affiliated with, endorsed by, or associated with Argos or J Sainsbury plc. Calculations execute 100% locally in your browser.

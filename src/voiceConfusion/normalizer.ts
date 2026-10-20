@@ -31,9 +31,17 @@ export function areLocationsEquivalent(locA: string, locB: string): boolean {
 export function getReportCompositeKey(
   heardLocation: string,
   actualLocation: string,
-  reason: string
+  reason: string = ''
 ): string {
-  return `${normaliseLocationCode(heardLocation)}::${normaliseLocationCode(actualLocation)}::${reason.trim()}`;
+  const base = `${normaliseLocationCode(heardLocation)}::${normaliseLocationCode(actualLocation)}`;
+  return reason.trim() ? `${base}::${reason.trim()}` : base;
+}
+
+/**
+ * Generates the canonical pair key for duplicate reference detection: VOICED::FOUND
+ */
+export function getCorrectionCompositeKey(voiced: string, found: string): string {
+  return `${normaliseLocationCode(voiced)}::${normaliseLocationCode(found)}`;
 }
 
 /**

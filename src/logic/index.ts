@@ -5,6 +5,7 @@ export * from './rfcCalculator.ts';
 export * from './reverseLookup.ts';
 export * from './similarLocations.ts';
 export * from './validator.ts';
+export * from './candidateRanking.ts';
 
 import type { CalculationResult, CheckMode, ReverseLookupResult, SimilarLocation } from './types.ts';
 import { calculateStoreCheckChar } from './storeCalculator.ts';

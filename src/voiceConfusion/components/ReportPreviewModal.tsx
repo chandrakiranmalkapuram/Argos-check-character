@@ -20,13 +20,15 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
   if (!isOpen) return null;
 
   const reasonInfo = VOICE_CONFUSION_REASONS.find(r => r.value === payload.reason);
+  const voiced = payload.voiced_location || payload.heard_location || '';
+  const found = payload.found_location || payload.actual_location || '';
 
   return (
     <div className="vc-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
       <div className="vc-modal-content">
         <div className="vc-modal-header">
           <h3 id="preview-modal-title" style={{ margin: 0, fontSize: '1.125rem' }}>
-            Preview Voice Confusion Report
+            Preview Location Correction
           </h3>
           <button
             type="button"
@@ -45,13 +47,13 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
 
         <div className="vc-modal-body">
           <div style={{ marginBottom: '1.25rem' }}>
-            <span className="vc-badge vc-badge-pending">Status: Will Submit as Pending Review</span>
+            <span className="vc-badge vc-badge-community">Shared Community Observation</span>
           </div>
 
           <div className="vc-location-comparison" style={{ justifyContent: 'center', marginBottom: '1.25rem' }}>
             <div className="vc-loc-box" style={{ textAlign: 'center' }}>
-              <span className="vc-loc-label">Heard by Headset</span>
-              <span className="vc-loc-value">{payload.heard_location}</span>
+              <span className="vc-loc-label">Voiced Location</span>
+              <span className="vc-loc-value">{voiced}</span>
             </div>
 
             <div className="vc-loc-arrow">
@@ -62,8 +64,8 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
             </div>
 
             <div className="vc-loc-box" style={{ textAlign: 'center' }}>
-              <span className="vc-loc-label">Actual Location</span>
-              <span className="vc-loc-value">{payload.actual_location}</span>
+              <span className="vc-loc-label">Found Location</span>
+              <span className="vc-loc-value">{found}</span>
             </div>
           </div>
 
@@ -82,7 +84,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
           {payload.details && (
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-500)', textTransform: 'uppercase' }}>
-                Operational Details
+                Operational Notes
               </div>
               <div className="vc-report-details" style={{ marginTop: '0.25rem' }}>
                 {payload.details}
@@ -97,7 +99,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
               <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
             <span>
-              <strong>Review Policy:</strong> Submitted reports are reviewed by authorized stockroom moderators before appearing in public searches. Please ensure no personal names or customer data are included.
+              <strong>Community Policy:</strong> Contributions record reported observations to aid other workers in finding physical stock. Submissions are immediately retrievable by all visitors as unverified community reports.
             </span>
           </div>
         </div>
@@ -117,7 +119,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
             onClick={onConfirm}
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Submitting...' : 'Confirm and Submit Report'}
+            {isSubmitting ? 'Submitting...' : 'Confirm and Share Correction'}
           </button>
         </div>
       </div>
