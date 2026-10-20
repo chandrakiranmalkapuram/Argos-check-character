@@ -334,7 +334,7 @@ export function getAuthRedirectUrl(redirectTo?: string): string {
   if (typeof window !== 'undefined' && window.location) {
     const { origin, hostname } = window.location;
 
-    if (hostname.endsWith('pages.dev')) {
+    if (hostname.endsWith('pages.dev') || hostname.endsWith('workers.dev')) {
       return origin;
     }
 
