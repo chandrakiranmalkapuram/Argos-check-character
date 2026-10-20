@@ -892,3 +892,395 @@ body {
 .fade-in {
   animation: fadeIn 200ms ease-out forwards;
 }
+
+/* ============================================================================
+   Voice Confusion Reference Suggestions (Redesigned Interface)
+   Clean, modern, warehouse-optimised, accessible, high-contrast, uncluttered
+   ============================================================================ */
+
+.vc-suggestions-container {
+  background: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.vc-suggestions-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--slate-100);
+  padding-bottom: 0.875rem;
+}
+
+.vc-suggestions-header-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.vc-suggestions-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  flex: 1;
+  min-width: 240px;
+}
+
+.vc-suggestions-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--blue-50);
+  color: var(--blue-600);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.vc-suggestions-title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  letter-spacing: -0.01em;
+}
+
+.vc-suggestions-desc {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--slate-600);
+  line-height: 1.45;
+}
+
+.vc-suggestions-db-btn {
+  font-size: 0.8125rem;
+  padding: 0.4rem 0.85rem;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+
+.vc-suggestions-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--slate-600);
+  background: var(--slate-50);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--slate-200);
+  flex-wrap: wrap;
+}
+
+.vc-suggestions-searched-label {
+  font-weight: 500;
+  color: var(--slate-700);
+}
+
+.vc-suggestions-searched-code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--navy-900);
+  background: var(--white);
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--slate-300);
+  margin-left: 0.25rem;
+}
+
+.vc-suggestions-divider {
+  color: var(--slate-300);
+}
+
+.vc-suggestions-count {
+  font-weight: 600;
+  color: var(--slate-700);
+}
+
+/* Candidate Cards List */
+.vc-candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.vc-candidate-card {
+  background: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.125rem;
+  box-shadow: 0 1px 3px rgba(11, 25, 44, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative;
+}
+
+.vc-candidate-card:hover {
+  border-color: var(--slate-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.vc-candidate-card--community_report {
+  border-left: 4px solid var(--emerald-500);
+}
+
+.vc-candidate-card--inferred_heuristic {
+  border-left: 4px solid var(--blue-500);
+}
+
+.vc-candidate-card--reference_fallback {
+  border-left: 4px solid var(--amber-500);
+  background: var(--amber-50);
+}
+
+/* Card Header */
+.vc-candidate-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.vc-candidate-code-group {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.vc-candidate-code {
+  font-family: var(--font-mono);
+  font-size: 1.375rem;
+  font-weight: 800;
+  color: var(--navy-900);
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+/* Evidence Badges */
+.vc-evidence-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.vc-evidence-badge--community_report {
+  background: var(--emerald-100);
+  color: var(--emerald-600);
+  border: 1px solid var(--emerald-500);
+}
+
+.vc-evidence-badge--inferred_heuristic {
+  background: var(--blue-100);
+  color: var(--navy-800);
+  border: 1px solid var(--blue-400);
+}
+
+.vc-evidence-badge--reference_fallback {
+  background: var(--amber-100);
+  color: var(--amber-600);
+  border: 1px solid var(--amber-500);
+}
+
+/* Card Action: Select Location Button */
+.vc-candidate-select-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--navy-900);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-height: 36px;
+}
+
+.vc-candidate-select-btn:hover {
+  background: var(--navy-700);
+  transform: translateY(-1px);
+}
+
+.vc-candidate-select-btn:focus-visible {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 2px;
+}
+
+/* Secondary Info Row */
+.vc-candidate-check-info {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--slate-700);
+  background: var(--slate-50);
+  padding: 0.4rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--slate-200);
+}
+
+.vc-candidate-card--reference_fallback .vc-candidate-check-info {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.vc-candidate-check-char {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.vc-candidate-check-label {
+  color: var(--slate-500);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.vc-candidate-check-val {
+  font-weight: 700;
+  color: var(--navy-900);
+  font-family: var(--font-mono);
+}
+
+.vc-candidate-spoken {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  color: var(--slate-500);
+  font-size: 0.75rem;
+}
+
+.vc-candidate-spoken-val {
+  font-style: italic;
+  color: var(--slate-600);
+}
+
+/* Plain English Explanation */
+.vc-candidate-plain-reason {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--slate-800);
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+/* Accessible Disclosure: "Why this suggestion?" */
+.vc-candidate-why-details {
+  border-top: 1px solid var(--slate-100);
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.vc-candidate-why-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--blue-600);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.2rem 0;
+  list-style: none;
+}
+
+.vc-candidate-why-summary::-webkit-details-marker {
+  display: none;
+}
+
+.vc-candidate-why-summary:hover {
+  color: var(--navy-900);
+}
+
+.vc-candidate-why-summary:focus-visible {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.vc-why-chevron {
+  transition: transform var(--transition-fast);
+}
+
+.vc-candidate-why-details[open] .vc-why-chevron {
+  transform: rotate(180deg);
+}
+
+.vc-candidate-why-content {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--slate-700);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vc-why-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  line-height: 1.4;
+}
+
+.vc-why-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--slate-200);
+}
+
+.vc-why-meta-tag {
+  font-size: 0.6875rem;
+  color: var(--slate-500);
+  font-weight: 500;
+}
+
+@media (max-width: 480px) {
+  .vc-suggestions-container {
+    padding: 1rem;
+  }
+  .vc-candidate-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .vc-candidate-select-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .vc-suggestions-header-main {
+    flex-direction: column;
+  }
+  .vc-suggestions-db-btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}
