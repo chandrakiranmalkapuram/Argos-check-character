@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { rankCandidatesForLocation, type CandidateSuggestion } from '../../logic/candidateRanking.ts';
+import { getPlainEnglishReason, getEvidenceLabel } from '../../logic/suggestionFormatters.ts';
 import { getAllActiveReports } from '../service.ts';
 import type { VoiceConfusionReport } from '../types.ts';
 
@@ -42,8 +43,7 @@ export const UnreferencedZoneLookup: React.FC<UnreferencedZoneLookupProps> = ({
           Unreferenced Zone & Voice Candidate Analysis
         </h2>
         <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--slate-500)' }}>
-          Deterministic, evidence-based candidate suggestions for voice-confused and unreferenced stockroom zones.
-          Ranks community observations, warehouse prefix rules, and documented acoustic substitutions.
+          Possible alternatives based on community reports and character-hearing patterns.
         </p>
       </div>
 
@@ -107,144 +107,148 @@ export const UnreferencedZoneLookup: React.FC<UnreferencedZoneLookupProps> = ({
       {/* Candidate Results */}
       {cleanInput && candidates.length > 0 && (
         <div className="vc-candidates-container">
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-              marginBottom: '0.75rem',
-              fontSize: '0.8125rem',
-              color: 'var(--slate-600)'
-            }}
-          >
-            <span>
-              <strong>{candidates.length} Candidate Possibilit{candidates.length === 1 ? 'y' : 'ies'}</strong> found for "{cleanInput}"
+          <div className="vc-suggestions-summary-bar" style={{ marginBottom: '1rem' }}>
+            <span className="vc-suggestions-searched-label">
+              Searched Code: <span className="vc-suggestions-searched-code">{cleanInput}</span>
             </span>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--slate-400)' }}>Deterministic Ranking</span>
-              {onRequestShareCorrection && (
+            <span className="vc-suggestions-divider" aria-hidden="true">&bull;</span>
+            <span className="vc-suggestions-count">
+              {candidates.length} {candidates.length === 1 ? 'candidate possibility' : 'candidate possibilities'} found
+            </span>
+            {onRequestShareCorrection && (
+              <div style={{ marginLeft: 'auto' }}>
                 <button
                   type="button"
                   className="vc-btn vc-btn-secondary"
-                  style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}
+                  style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}
                   onClick={() => onRequestShareCorrection(cleanInput)}
                 >
                   Share Correction &rarr;
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="vc-candidates-list" role="feed" aria-label="Candidate possibilities list">
             {candidates.map(cand => {
-              const isCommunity = cand.type === 'community_report';
-              const isFallback = cand.type === 'reference_fallback';
+              const evidenceLabel = getEvidenceLabel(cand);
+              const plainReason = getPlainEnglishReason(cand, cleanInput);
 
               return (
-                <div
+                <article
                   key={cand.candidateLocation}
-                  style={{
-                    background: isFallback ? 'var(--amber-50, #fffbeb)' : 'var(--white, #fff)',
-                    border: isFallback
-                      ? '1px dashed var(--amber-300, #fcd34d)'
-                      : isCommunity
-                      ? '1px solid var(--emerald-300, #6ee7b7)'
-                      : '1px solid var(--slate-200, #e2e8f0)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    padding: '0.9rem',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                  }}
+                  className={`vc-candidate-card vc-candidate-card--${cand.type}`}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      <span
-                        style={{
-                          fontSize: '1.25rem',
-                          fontWeight: 700,
-                          fontFamily: 'monospace',
-                          color: 'var(--navy-900)'
-                        }}
-                      >
+                  <div className="vc-candidate-header">
+                    <div className="vc-candidate-code-group">
+                      <span className="vc-candidate-code" aria-label={`Candidate location ${cand.candidateLocation}`}>
                         {cand.candidateLocation}
                       </span>
+                      <span className={`vc-evidence-badge vc-evidence-badge--${cand.type}`}>
+                        {evidenceLabel}
+                      </span>
+                    </div>
 
-                      <span
-                        className="vc-badge"
-                        style={{
-                          background: isCommunity ? 'rgba(16, 185, 129, 0.12)' : isFallback ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.1)',
-                          color: isCommunity ? 'var(--emerald-800)' : isFallback ? 'var(--amber-800)' : 'var(--blue-800)',
-                          borderColor: isCommunity ? 'var(--emerald-300)' : isFallback ? 'var(--amber-300)' : 'var(--blue-300)'
-                        }}
+                    {onSelectLocation && (
+                      <button
+                        type="button"
+                        className="vc-candidate-select-btn"
+                        onClick={() => onSelectLocation(cand.candidateLocation)}
+                        title={`Calculate check character for ${cand.candidateLocation}`}
+                        aria-label={`Select candidate ${cand.candidateLocation}`}
                       >
-                        {cand.label}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--slate-500)' }}>
-                        Rank Score: {cand.totalScore}
-                      </span>
-
-                      {onSelectLocation && (
-                        <button
-                          type="button"
-                          className="vc-btn vc-btn-secondary"
-                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                          onClick={() => onSelectLocation(cand.candidateLocation)}
-                          title={`Calculate check character for ${cand.candidateLocation}`}
-                        >
-                          Check in Calculator
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Phonetic & Check Character Data */}
-                  <div style={{ fontSize: '0.8125rem', color: 'var(--slate-700)', marginBottom: '0.5rem' }}>
-                    <strong>Check Character:</strong>{' '}
-                    <span style={{ fontWeight: 700, color: 'var(--navy-900)' }}>{cand.checkChar}</span>
-                    {cand.spokenText && (
-                      <span style={{ marginLeft: '0.75rem', color: 'var(--slate-500)' }}>
-                        (Spoken: <em>{cand.spokenText}</em>)
-                      </span>
+                        <span>Check in Calculator</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </button>
                     )}
                   </div>
 
-                  {/* Evidence Explanations */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.5rem' }}>
-                    {cand.explanations.map((exp, idx) => (
-                      <div key={idx} style={{ fontSize: '0.8125rem', color: isFallback ? 'var(--amber-900)' : 'var(--slate-700)', lineHeight: 1.4 }}>
-                        &bull; {exp}
+                  <div className="vc-candidate-check-info">
+                    <div className="vc-candidate-check-char">
+                      <span className="vc-candidate-check-label">Check Character:</span>
+                      <span className="vc-candidate-check-val">{cand.checkChar}</span>
+                    </div>
+                    {cand.spokenText && (
+                      <div className="vc-candidate-spoken">
+                        <span className="vc-candidate-spoken-label">Phonetic:</span>
+                        <span className="vc-candidate-spoken-val">"{cand.spokenText}"</span>
                       </div>
-                    ))}
+                    )}
                   </div>
 
-                  {/* Score Breakdown Detail */}
-                  <div
-                    style={{
-                      fontSize: '0.6875rem',
-                      color: 'var(--slate-400)',
-                      paddingTop: '0.35rem',
-                      borderTop: '1px solid rgba(0,0,0,0.05)',
-                      display: 'flex',
-                      gap: '0.75rem',
-                      flexWrap: 'wrap'
-                    }}
-                  >
-                    <span>Base: {cand.scoreBreakdown.communityBase}</span>
-                    {cand.scoreBreakdown.confirmationBoost > 0 && <span>Confirmations: +{cand.scoreBreakdown.confirmationBoost}</span>}
-                    {cand.scoreBreakdown.acousticHeuristic > 0 && <span>Acoustic Heuristic: +{cand.scoreBreakdown.acousticHeuristic}</span>}
-                    {cand.scoreBreakdown.sameAisleBoost > 0 && <span>Same Aisle: +{cand.scoreBreakdown.sameAisleBoost}</span>}
-                    {cand.scoreBreakdown.checkCharCollisionBoost > 0 && <span>Check Character Collision: +{cand.scoreBreakdown.checkCharCollisionBoost}</span>}
+                  <div className="vc-candidate-explanation">
+                    <p className="vc-candidate-plain-reason">{plainReason}</p>
                   </div>
-                </div>
+
+                  <details className="vc-candidate-why-details">
+                    <summary className="vc-candidate-why-summary">
+                      <svg className="vc-why-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                      <span>Why this suggestion?</span>
+                    </summary>
+                    <div className="vc-candidate-why-content">
+                      <ul className="vc-why-list">
+                        {cand.explanations.map((exp, idx) => (
+                          <li key={idx}>{exp}</li>
+                        ))}
+                      </ul>
+                      <div className="vc-why-meta">
+                        {cand.type === 'community_report' && (
+                          <span className="vc-why-meta-tag">
+                            Source: Community Report ({cand.communityReport?.confirmations_count || 1} independent corroboration{(cand.communityReport?.confirmations_count || 1) === 1 ? '' : 's'})
+                          </span>
+                        )}
+                        {cand.type === 'inferred_heuristic' && (
+                          <span className="vc-why-meta-tag">
+                            Source: Documented Warehouse Acoustic Rule
+                          </span>
+                        )}
+                        {cand.type === 'reference_fallback' && (
+                          <span className="vc-why-meta-tag">
+                            Source: Valid Aisle Baseline Reference
+                          </span>
+                        )}
+                        {cand.candidateLocation.substring(0, 2) === cleanInput.substring(0, 2) && (
+                          <span className="vc-why-meta-tag">
+                            Same Aisle ({cleanInput.substring(0, 2)})
+                          </span>
+                        )}
+                        <span className="vc-why-meta-tag">
+                          Total Score: {cand.totalScore}
+                        </span>
+                      </div>
+                    </div>
+                  </details>
+                </article>
               );
             })}
           </div>
         </div>
       )}
 
-      {/* No Input state */}
+      {/* No Results state for searched code */}
+      {cleanInput && candidates.length === 0 && (
+        <div className="vc-state-box" style={{ marginTop: '1rem' }} role="status">
+          <span style={{ fontSize: '0.875rem', color: 'var(--slate-600)' }}>
+            No candidate suggestions found for "{cleanInput}". Check the code format or share a new voice confusion report.
+          </span>
+          {onRequestShareCorrection && (
+            <button
+              type="button"
+              className="vc-btn vc-btn-primary"
+              style={{ fontSize: '0.8125rem', marginTop: '0.5rem' }}
+              onClick={() => onRequestShareCorrection(cleanInput)}
+            >
+              Share Location Correction &rarr;
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* No Input prompt */}
       {!cleanInput && (
         <div className="vc-state-box" style={{ marginTop: '1rem' }}>
           <span style={{ fontSize: '0.875rem', color: 'var(--slate-500)' }}>

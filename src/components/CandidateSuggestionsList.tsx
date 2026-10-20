@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { rankCandidatesForLocation, type CandidateSuggestion } from '../logic/candidateRanking.ts';
+import { rankCandidatesForLocation } from '../logic/candidateRanking.ts';
 import type { VoiceConfusionReport } from '../voiceConfusion/types.ts';
 
 interface CandidateSuggestionsListProps {
@@ -9,6 +9,8 @@ interface CandidateSuggestionsListProps {
   onOpenVoiceConfusionReference: (location?: string) => void;
 }
 
+import { getPlainEnglishReason, getEvidenceLabel } from '../logic/suggestionFormatters.ts';
+
 export const CandidateSuggestionsList: React.FC<CandidateSuggestionsListProps> = ({
   currentLocation,
   communityReports,
@@ -17,106 +19,177 @@ export const CandidateSuggestionsList: React.FC<CandidateSuggestionsListProps> =
 }) => {
   const cleanCode = currentLocation.trim().toUpperCase().substring(0, 4);
 
-  const candidates: CandidateSuggestion[] = useMemo(() => {
-    if (!cleanCode) return [];
-    return rankCandidatesForLocation(cleanCode, communityReports);
+  const { candidates, error } = useMemo(() => {
+    if (!cleanCode) return { candidates: [], error: null };
+    try {
+      const results = rankCandidatesForLocation(cleanCode, communityReports);
+      return { candidates: results, error: null };
+    } catch (err: any) {
+      return { candidates: [], error: err?.message || 'Error calculating candidate suggestions.' };
+    }
   }, [cleanCode, communityReports]);
 
-  if (!cleanCode || candidates.length === 0) {
+  if (!cleanCode) {
+    return null;
+  }
+
+  if (error) {
+    return (
+      <section className="vc-suggestions-container fade-in" aria-label="Voice Confusion Candidate Suggestions">
+        <div className="vc-state-box" role="alert" style={{ color: 'var(--rose-600)', borderColor: 'var(--rose-300)' }}>
+          <strong>Error loading suggestions:</strong> {error}
+        </div>
+      </section>
+    );
+  }
+
+  if (candidates.length === 0) {
     return null;
   }
 
   return (
-    <section className="similar-locations-container fade-in" aria-label="Voice Confusion Candidate Suggestions">
-      <div className="similar-locations-header">
-        <div className="similar-header-title">
-          <svg
-            className="warning-icon"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--blue-600, #2563eb)"
-            strokeWidth="2.5"
-            aria-hidden="true"
+    <section className="vc-suggestions-container fade-in" aria-labelledby="vc-suggestions-title">
+      <div className="vc-suggestions-header">
+        <div className="vc-suggestions-header-main">
+          <div className="vc-suggestions-title-group">
+            <div className="vc-suggestions-icon-box" aria-hidden="true">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </div>
+            <div>
+              <h3 id="vc-suggestions-title" className="vc-suggestions-title">
+                Voice Confusion Reference Suggestions
+              </h3>
+              <p className="vc-suggestions-desc">
+                Possible alternatives based on community reports and character-hearing patterns.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="vc-btn vc-btn-secondary vc-suggestions-db-btn"
+            onClick={() => onOpenVoiceConfusionReference(cleanCode)}
+            aria-label={`View ${cleanCode} in Reference Database`}
           >
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="23" />
-            <line x1="8" y1="23" x2="16" y2="23" />
-          </svg>
-          <h3>Voice Confusion Reference Suggestions</h3>
-          <span className="similar-count-badge" style={{ background: 'var(--blue-100)', color: 'var(--blue-800)' }}>
-            {candidates.length} candidate{candidates.length === 1 ? '' : 's'}
-          </span>
+            <span>View in Reference Database</span>
+            <span aria-hidden="true">&rarr;</span>
+          </button>
         </div>
 
-        <button
-          type="button"
-          className="link-btn"
-          onClick={() => onOpenVoiceConfusionReference(cleanCode)}
-          style={{ fontSize: '0.8125rem' }}
-        >
-          View in Reference Database &rarr;
-        </button>
+        <div className="vc-suggestions-summary-bar">
+          <span className="vc-suggestions-searched-label">
+            Searched Code: <span className="vc-suggestions-searched-code">{cleanCode}</span>
+          </span>
+          <span className="vc-suggestions-divider" aria-hidden="true">&bull;</span>
+          <span className="vc-suggestions-count">
+            {candidates.length} {candidates.length === 1 ? 'suggestion' : 'suggestions'} found
+          </span>
+        </div>
       </div>
 
-      <p className="similar-locations-desc">
-        Deterministic candidate locations ranked by community observations, warehouse prefix rules, and documented acoustic substitutions for unreferenced zones.
-      </p>
-
-      <div className="similar-grid">
+      <div className="vc-candidates-list" role="feed" aria-label="Candidate suggestions list">
         {candidates.map(cand => {
-          const isCommunity = cand.type === 'community_report';
-          const isFallback = cand.type === 'reference_fallback';
+          const evidenceLabel = getEvidenceLabel(cand);
+          const plainReason = getPlainEnglishReason(cand, cleanCode);
 
           return (
-            <div
+            <article
               key={cand.candidateLocation}
-              className="similar-card"
-              style={{
-                borderLeft: isCommunity
-                  ? '4px solid var(--emerald-500, #10b981)'
-                  : isFallback
-                  ? '4px solid var(--amber-500, #f59e0b)'
-                  : '4px solid var(--blue-500, #3b82f6)'
-              }}
+              className={`vc-candidate-card vc-candidate-card--${cand.type}`}
             >
-              <div className="similar-card-top">
+              <div className="vc-candidate-header">
+                <div className="vc-candidate-code-group">
+                  <span className="vc-candidate-code" aria-label={`Candidate location ${cand.candidateLocation}`}>
+                    {cand.candidateLocation}
+                  </span>
+                  <span className={`vc-evidence-badge vc-evidence-badge--${cand.type}`}>
+                    {evidenceLabel}
+                  </span>
+                </div>
+
                 <button
                   type="button"
-                  className="similar-loc-pill"
+                  className="vc-candidate-select-btn"
                   onClick={() => onSelectLocation(cand.candidateLocation)}
                   title={`Calculate check character for ${cand.candidateLocation}`}
                   aria-label={`Select candidate ${cand.candidateLocation}`}
                 >
-                  {cand.candidateLocation}
+                  <span>Select Location</span>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
                 </button>
-
-                <span
-                  className="vc-badge"
-                  style={{
-                    fontSize: '0.6875rem',
-                    background: isCommunity ? 'rgba(16, 185, 129, 0.12)' : isFallback ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.1)',
-                    color: isCommunity ? 'var(--emerald-800)' : isFallback ? 'var(--amber-800)' : 'var(--blue-800)',
-                    borderColor: isCommunity ? 'var(--emerald-300)' : isFallback ? 'var(--amber-300)' : 'var(--blue-300)'
-                  }}
-                >
-                  {cand.label}
-                </span>
               </div>
 
-              <div className="similar-card-check">
-                <span>Check Char:</span>
-                <strong>{cand.checkChar}</strong>
-                {cand.spokenText && <span style={{ color: 'var(--slate-400)', fontSize: '0.75rem' }}>({cand.spokenText})</span>}
+              <div className="vc-candidate-check-info">
+                <div className="vc-candidate-check-char">
+                  <span className="vc-candidate-check-label">Check Character:</span>
+                  <span className="vc-candidate-check-val">{cand.checkChar}</span>
+                </div>
+                {cand.spokenText && (
+                  <div className="vc-candidate-spoken">
+                    <span className="vc-candidate-spoken-label">Phonetic:</span>
+                    <span className="vc-candidate-spoken-val">"{cand.spokenText}"</span>
+                  </div>
+                )}
               </div>
 
-              <div className="similar-card-reason">
-                <span className="reason-label">Evidence:</span>
-                <span className="reason-text">{cand.explanations[0]}</span>
+              <div className="vc-candidate-explanation">
+                <p className="vc-candidate-plain-reason">{plainReason}</p>
               </div>
-            </div>
+
+              <details className="vc-candidate-why-details">
+                <summary className="vc-candidate-why-summary">
+                  <svg className="vc-why-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                  <span>Why this suggestion?</span>
+                </summary>
+                <div className="vc-candidate-why-content">
+                  <ul className="vc-why-list">
+                    {cand.explanations.map((exp, idx) => (
+                      <li key={idx}>{exp}</li>
+                    ))}
+                  </ul>
+                  <div className="vc-why-meta">
+                    {cand.type === 'community_report' && (
+                      <span className="vc-why-meta-tag">
+                        Source: Community Report ({cand.communityReport?.confirmations_count || 1} independent {(cand.communityReport?.confirmations_count || 1) === 1 ? 'corroboration' : 'corroborations'})
+                      </span>
+                    )}
+                    {cand.type === 'inferred_heuristic' && (
+                      <span className="vc-why-meta-tag">
+                        Source: Documented Warehouse Acoustic Rule
+                      </span>
+                    )}
+                    {cand.type === 'reference_fallback' && (
+                      <span className="vc-why-meta-tag">
+                        Source: Valid Aisle Baseline Reference
+                      </span>
+                    )}
+                    {cand.candidateLocation.substring(0, 2) === cleanCode.substring(0, 2) && (
+                      <span className="vc-why-meta-tag">
+                        Same Aisle ({cleanCode.substring(0, 2)})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </details>
+            </article>
           );
         })}
       </div>
