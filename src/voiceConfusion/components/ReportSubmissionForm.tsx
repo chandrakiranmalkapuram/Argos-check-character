@@ -3,7 +3,7 @@ import type { VoiceConfusionReason, AuthUser } from '../types.ts';
 import { VOICE_CONFUSION_REASONS } from '../types.ts';
 import { validateReportSubmission } from '../validation.ts';
 import { normaliseLocationCode, detectAmbiguousCharacters } from '../normalizer.ts';
-import { submitVoiceConfusionReport } from '../service.ts';
+import { submitLocationCorrection } from '../service.ts';
 import { ReportPreviewModal } from './ReportPreviewModal.tsx';
 
 interface ReportSubmissionFormProps {
@@ -17,8 +17,8 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
   onOpenAuth,
   onSuccessSubmission
 }) => {
-  const [heardLocation, setHeardLocation] = useState('');
-  const [actualLocation, setActualLocation] = useState('');
+  const [voicedLocation, setVoicedLocation] = useState('');
+  const [foundLocation, setFoundLocation] = useState('');
   const [reason, setReason] = useState<VoiceConfusionReason>('similar_sounding');
   const [details, setDetails] = useState('');
 
@@ -33,8 +33,8 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
   const [honeyTrap, setHoneyTrap] = useState('');
 
   // Ambiguity detection for character clarity (O vs 0, I vs 1)
-  const heardAmbiguity = detectAmbiguousCharacters(heardLocation);
-  const actualAmbiguity = detectAmbiguousCharacters(actualLocation);
+  const voicedAmbiguity = detectAmbiguousCharacters(voicedLocation);
+  const foundAmbiguity = detectAmbiguousCharacters(foundLocation);
 
   const handleOpenPreview = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,13 +44,13 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
 
     // Anti-spam honeypot detection
     if (honeyTrap) {
-      setServerError('Spam submission detected.');
+      setServerError('Automated spam submission detected.');
       return;
     }
 
     const validation = validateReportSubmission({
-      heard_location: heardLocation,
-      actual_location: actualLocation,
+      voiced_location: voicedLocation,
+      found_location: foundLocation,
       reason,
       details
     });
@@ -70,9 +70,9 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
     setIsDuplicateWarning(false);
 
     try {
-      const response = await submitVoiceConfusionReport({
-        heard_location: normaliseLocationCode(heardLocation),
-        actual_location: normaliseLocationCode(actualLocation),
+      const response = await submitLocationCorrection({
+        voiced_location: normaliseLocationCode(voicedLocation),
+        found_location: normaliseLocationCode(foundLocation),
         reason,
         details: details.trim() || undefined
       });
@@ -84,22 +84,27 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
         return;
       }
 
-      // Success
+      // Success (whether new or duplicate corroboration)
       setIsPreviewOpen(false);
+      setIsDuplicateWarning(Boolean(response.is_duplicate));
       setSuccessMessage(
         response.message ||
-          'Report submitted successfully. Your report is currently pending admin review and will appear in public search results once approved.'
+          'Location correction shared successfully! Newly submitted reports are immediately visible to all visitors as unverified community reports.'
       );
 
       // Reset form
-      setHeardLocation('');
-      setActualLocation('');
+      setVoicedLocation('');
+      setFoundLocation('');
       setReason('similar_sounding');
       setDetails('');
       setHoneyTrap('');
       setErrors({});
+
+      if (onSuccessSubmission) {
+        onSuccessSubmission();
+      }
     } catch (err: any) {
-      setServerError(err?.message || 'An unexpected error occurred.');
+      setServerError(err?.message || 'An unexpected network error occurred.');
       setIsPreviewOpen(false);
     } finally {
       setIsSubmitting(false);
@@ -115,15 +120,15 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
           alignItems: 'flex-start',
           flexWrap: 'wrap',
           gap: '0.75rem',
-          marginBottom: '1.25rem'
+          marginBottom: '1rem'
         }}
       >
         <div>
           <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.25rem', color: 'var(--navy-900)' }}>
-            Report a Voice Confusion Risk
+            Share Location Correction
           </h2>
           <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--slate-500)' }}>
-            Help fellow stockroom pickers identify locations easily misheard by voice headsets.
+            Record what you heard versus what you found to help all pickers navigate confusable or unreferenced zones.
           </p>
         </div>
         {currentUser ? (
@@ -149,11 +154,41 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
                   padding: 0
                 }}
               >
-                Sign in to link submissions
+                Sign in (Optional)
               </button>
             )}
           </div>
         )}
+      </div>
+
+      {/* Observation Explanation Notice */}
+      <div
+        className="vc-disclaimer"
+        style={{
+          marginBottom: '1.25rem',
+          background: 'var(--blue-50, #eff6ff)',
+          borderColor: 'var(--blue-200, #bfdbfe)'
+        }}
+      >
+        <svg
+          className="vc-disclaimer-icon"
+          style={{ color: 'var(--blue-600, #2563eb)' }}
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="16" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+        <div style={{ fontSize: '0.8125rem', color: 'var(--blue-900, #1e3a8a)', lineHeight: 1.45 }}>
+          <strong>Reported Observation:</strong> A contribution records a reported stockroom observation,
+          not guaranteed proof of a universal pronunciation rule. Newly submitted reports are immediately
+          saved to the shared database and visible to all visitors as unverified community reports until independently corroborated.
+        </div>
       </div>
 
       {/* Success Notification */}
@@ -175,21 +210,11 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
           </svg>
           <div style={{ flex: 1 }}>
             <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--emerald-800)', fontSize: '0.9375rem' }}>
-              Report Received — Awaiting Admin Review
+              {isDuplicateWarning ? 'Observation Corroborated (+1 Confirmation)' : 'Correction Shared with Community'}
             </h4>
             <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--emerald-900)', lineHeight: 1.4 }}>
               {successMessage}
             </p>
-            {currentUser && onSuccessSubmission && (
-              <button
-                type="button"
-                className="vc-btn vc-btn-secondary"
-                style={{ marginTop: '0.75rem', fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
-                onClick={onSuccessSubmission}
-              >
-                Track in My Reports &rarr;
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -228,7 +253,7 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
       )}
 
       <form onSubmit={handleOpenPreview} noValidate>
-        {/* Anti-spam honeypot (hidden from human users) */}
+        {/* Anti-spam honeypot */}
         <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
           <label htmlFor="form-honeypot-field">Leave this empty</label>
           <input
@@ -242,26 +267,26 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
           />
         </div>
 
-        {/* Dual Location Inputs */}
+        {/* Dual Location Inputs: Voiced location & Found location */}
         <div className="vc-location-pair-inputs">
-          {/* Heard Location */}
+          {/* Voiced Location */}
           <div className="vc-form-group">
-            <label htmlFor="heard-location-input" className="vc-form-label">
-              <span>Heard / Headset Location <span style={{ color: 'var(--rose-500)' }}>*</span></span>
-              <span className="vc-form-hint">e.g. J7AZ, S1PG, 10AK</span>
+            <label htmlFor="voiced-location-input" className="vc-form-label">
+              <span>Voiced location <span style={{ color: 'var(--rose-500)' }}>*</span></span>
+              <span className="vc-form-hint">Heard/spoken verbally (e.g. 08MN, 16ZG, 81ZE, 01MM)</span>
             </label>
             <input
-              id="heard-location-input"
+              id="voiced-location-input"
               type="text"
-              className={`vc-input vc-input-code ${errors.heard_location ? 'has-error' : ''}`}
-              placeholder="e.g. J7AZ"
-              value={heardLocation}
+              className={`vc-input vc-input-code ${errors.voiced_location ? 'has-error' : ''}`}
+              placeholder="e.g. 08MN"
+              value={voicedLocation}
               onChange={e => {
-                setHeardLocation(e.target.value.toUpperCase());
-                if (errors.heard_location) {
+                setVoicedLocation(e.target.value.toUpperCase());
+                if (errors.voiced_location) {
                   setErrors(prev => {
                     const next = { ...prev };
-                    delete next.heard_location;
+                    delete next.voiced_location;
                     return next;
                   });
                 }
@@ -269,41 +294,41 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
               maxLength={10}
               required
             />
-            {errors.heard_location && (
+            {errors.voiced_location && (
               <div className="vc-error-msg">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
                   <line x1="12" y1="8" x2="12" y2="12" />
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
-                <span>{errors.heard_location}</span>
+                <span>{errors.voiced_location}</span>
               </div>
             )}
-            {(heardAmbiguity.hasDigitZero || heardAmbiguity.hasLetterO) && (
+            {(voicedAmbiguity.hasDigitZero || voicedAmbiguity.hasLetterO) && (
               <div className="vc-ambiguity-notice">
-                <span>Note: Contains {heardAmbiguity.hasDigitZero ? 'digit 0' : ''}{heardAmbiguity.hasDigitZero && heardAmbiguity.hasLetterO ? ' and ' : ''}{heardAmbiguity.hasLetterO ? 'letter O' : ''} (preserved strictly).</span>
+                <span>Note: Contains {voicedAmbiguity.hasDigitZero ? 'digit 0' : ''}{voicedAmbiguity.hasDigitZero && voicedAmbiguity.hasLetterO ? ' and ' : ''}{voicedAmbiguity.hasLetterO ? 'letter O' : ''} (preserved strictly).</span>
               </div>
             )}
           </div>
 
-          {/* Actual Location */}
+          {/* Found Location */}
           <div className="vc-form-group">
-            <label htmlFor="actual-location-input" className="vc-form-label">
-              <span>Actual Found Location <span style={{ color: 'var(--rose-500)' }}>*</span></span>
-              <span className="vc-form-hint">e.g. 07AZ, 01PG, 10KA</span>
+            <label htmlFor="found-location-input" className="vc-form-label">
+              <span>Found location <span style={{ color: 'var(--rose-500)' }}>*</span></span>
+              <span className="vc-form-hint">Physical shelf confirmed (e.g. 20AN, 16JA, 50ER, Z01B)</span>
             </label>
             <input
-              id="actual-location-input"
+              id="found-location-input"
               type="text"
-              className={`vc-input vc-input-code ${errors.actual_location ? 'has-error' : ''}`}
-              placeholder="e.g. 07AZ"
-              value={actualLocation}
+              className={`vc-input vc-input-code ${errors.found_location ? 'has-error' : ''}`}
+              placeholder="e.g. 20AN"
+              value={foundLocation}
               onChange={e => {
-                setActualLocation(e.target.value.toUpperCase());
-                if (errors.actual_location) {
+                setFoundLocation(e.target.value.toUpperCase());
+                if (errors.found_location) {
                   setErrors(prev => {
                     const next = { ...prev };
-                    delete next.actual_location;
+                    delete next.found_location;
                     return next;
                   });
                 }
@@ -311,25 +336,25 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
               maxLength={10}
               required
             />
-            {errors.actual_location && (
+            {errors.found_location && (
               <div className="vc-error-msg">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
                   <line x1="12" y1="8" x2="12" y2="12" />
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
-                <span>{errors.actual_location}</span>
+                <span>{errors.found_location}</span>
               </div>
             )}
-            {(actualAmbiguity.hasDigitZero || actualAmbiguity.hasLetterO) && (
+            {(foundAmbiguity.hasDigitZero || foundAmbiguity.hasLetterO) && (
               <div className="vc-ambiguity-notice">
-                <span>Note: Contains {actualAmbiguity.hasDigitZero ? 'digit 0' : ''}{actualAmbiguity.hasDigitZero && actualAmbiguity.hasLetterO ? ' and ' : ''}{actualAmbiguity.hasLetterO ? 'letter O' : ''} (preserved strictly).</span>
+                <span>Note: Contains {foundAmbiguity.hasDigitZero ? 'digit 0' : ''}{foundAmbiguity.hasDigitZero && foundAmbiguity.hasLetterO ? ' and ' : ''}{foundAmbiguity.hasLetterO ? 'letter O' : ''} (preserved strictly).</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* General Form Error (e.g. identical locations) */}
+        {/* General Form Error */}
         {errors.general && (
           <div className="vc-error-msg" style={{ marginBottom: '1rem', fontSize: '0.8125rem' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -344,7 +369,7 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
         {/* Reason for Confusion */}
         <div className="vc-form-group">
           <label className="vc-form-label">
-            <span>Reason for Confusion <span style={{ color: 'var(--rose-500)' }}>*</span></span>
+            <span>Operational Reason for Confusion</span>
           </label>
           <div className="vc-reason-grid" role="radiogroup" aria-label="Reason for confusion">
             {VOICE_CONFUSION_REASONS.map(item => (
@@ -367,20 +392,19 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
               </label>
             ))}
           </div>
-          {errors.reason && <div className="vc-error-msg">{errors.reason}</div>}
         </div>
 
         {/* Details (Optional) */}
         <div className="vc-form-group">
           <label htmlFor="details-textarea" className="vc-form-label">
-            <span>Operational Details (Optional)</span>
-            <span className="vc-form-hint">Aisle noise, mezzanine acoustics, etc.</span>
+            <span>Context / Warehouse Observation (Optional)</span>
+            <span className="vc-form-hint">E.g., Headset phrasing difference, radio noise, aisle echo</span>
           </label>
           <textarea
             id="details-textarea"
             className={`vc-textarea ${errors.details ? 'has-error' : ''}`}
             rows={3}
-            placeholder="Explain what happened (do not include personal names or customer information)..."
+            placeholder="Describe what occurred (e.g., Heard 'zero-eight' but stock was in aisle 20; bulk prefix confusion)..."
             value={details}
             onChange={e => setDetails(e.target.value)}
             maxLength={500}
@@ -393,10 +417,12 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
           <button type="submit" className="vc-btn vc-btn-primary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="8.5" cy="7" r="4" />
+              <line x1="20" y1="8" x2="20" y2="14" />
+              <line x1="23" y1="11" x2="17" y2="11" />
             </svg>
-            <span>Preview Report</span>
+            <span>Share location correction</span>
           </button>
         </div>
       </form>
@@ -405,8 +431,10 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
       <ReportPreviewModal
         isOpen={isPreviewOpen}
         payload={{
-          heard_location: normaliseLocationCode(heardLocation),
-          actual_location: normaliseLocationCode(actualLocation),
+          voiced_location: normaliseLocationCode(voicedLocation),
+          found_location: normaliseLocationCode(foundLocation),
+          heard_location: normaliseLocationCode(voicedLocation),
+          actual_location: normaliseLocationCode(foundLocation),
           reason,
           details: details.trim() || undefined
         }}

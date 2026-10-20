@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ReportSearch } from './components/ReportSearch.tsx';
 import { ReportSubmissionForm } from './components/ReportSubmissionForm.tsx';
+import { UnreferencedZoneLookup } from './components/UnreferencedZoneLookup.tsx';
 import { MyReportsView } from './components/MyReportsView.tsx';
 import { ModeratorView } from './components/ModeratorView.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
@@ -12,7 +13,7 @@ interface VoiceConfusionViewProps {
   initialLocationQuery?: string;
 }
 
-type SubTab = 'search' | 'submit' | 'my-reports' | 'moderator';
+type SubTab = 'search' | 'submit' | 'lookup' | 'my-reports' | 'moderator';
 
 export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
   onSelectLocation,
@@ -24,10 +25,8 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
   const [authPrompt, setAuthPrompt] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    // Initial user fetch
     getCurrentUser().then(setCurrentUser);
 
-    // Reactive subscription to auth state changes
     const unsubscribe = onAuthStateChange(user => {
       setCurrentUser(user);
     });
@@ -55,10 +54,11 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
                 <line x1="12" y1="19" x2="12" y2="23" />
                 <line x1="8" y1="23" x2="16" y2="23" />
               </svg>
-              <span>Voice Confusion Risk</span>
+              <span>Voice Confusion Reference</span>
             </h1>
             <p className="vc-header-subtitle">
-              Community-driven reporting for stockroom locations frequently misrecognized by voice headsets. Search verified confusable pairs or submit new field reports.
+              Shared community reference database for voice-confused and unreferenced warehouse locations.
+              Search reported observations, share corrections, and analyze deterministic candidate rankings.
             </p>
           </div>
 
@@ -88,9 +88,9 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
                 type="button"
                 className="vc-btn vc-btn-primary"
                 style={{ padding: '0.45rem 0.9rem', fontSize: '0.8125rem' }}
-                onClick={() => handleOpenAuth('Sign in with your email to track your submitted reports or access admin moderation.')}
+                onClick={() => handleOpenAuth('Sign in with your email to track your submitted reports or access moderation.')}
               >
-                Sign In (Magic Link)
+                Sign In (Optional)
               </button>
             )}
           </div>
@@ -113,7 +113,7 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
         <div>
-          <strong>Operational Notice:</strong> Voice recognition fidelity and acoustic interpretation vary across headset models and ambient aisle noise. Community reports reflect observed warehouse misrecognitions and must always be verified against the official store inventory terminal.
+          <strong>Operational Principle:</strong> A contribution records a reported observation, not guaranteed proof of a universal pronunciation rule. Newly submitted reports are immediately persisted and shared with all workers as unverified community reports until corroborated.
         </div>
       </div>
 
@@ -130,7 +130,7 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <span>Search Approved Reports</span>
+          <span>Community Reference Database</span>
         </button>
 
         <button
@@ -144,7 +144,21 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
-          <span>Submit a Report</span>
+          <span>Share Location Correction</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'lookup'}
+          className={`vc-subnav-btn ${activeTab === 'lookup' ? 'active' : ''}`}
+          onClick={() => setActiveTab('lookup')}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+          </svg>
+          <span>Unreferenced Zone Lookup</span>
         </button>
 
         <button
@@ -160,27 +174,27 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
             <line x1="16" y1="13" x2="8" y2="13" />
             <line x1="16" y1="17" x2="8" y2="17" />
           </svg>
-          <span>My Reports</span>
+          <span>My Submissions</span>
         </button>
 
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'moderator'}
-          className={`vc-subnav-btn ${activeTab === 'moderator' ? 'active' : ''}`}
-          onClick={() => setActiveTab('moderator')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          <span>Admin Moderation</span>
-          {currentUser?.isModerator && (
+        {currentUser?.isModerator && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'moderator'}
+            className={`vc-subnav-btn ${activeTab === 'moderator' ? 'active' : ''}`}
+            onClick={() => setActiveTab('moderator')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Admin Moderation</span>
             <span className="vc-badge vc-badge-approved" style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}>
-              PRO
+              MOD
             </span>
-          )}
-        </button>
+          </button>
+        )}
       </div>
 
       {/* Sub-view Content */}
@@ -196,7 +210,15 @@ export const VoiceConfusionView: React.FC<VoiceConfusionViewProps> = ({
         <ReportSubmissionForm
           currentUser={currentUser}
           onOpenAuth={() => handleOpenAuth('Sign in with your email to track your submitted reports.')}
-          onSuccessSubmission={() => setActiveTab('my-reports')}
+          onSuccessSubmission={() => setActiveTab('search')}
+        />
+      )}
+
+      {activeTab === 'lookup' && (
+        <UnreferencedZoneLookup
+          initialCode={initialLocationQuery}
+          onSelectLocation={onSelectLocation}
+          onRequestShareCorrection={() => setActiveTab('submit')}
         />
       )}
 

@@ -1,5 +1,5 @@
 /**
- * Form validation rules for Voice Confusion Risk reporting.
+ * Form validation rules for Voice Confusion Reference reporting.
  */
 
 import { normaliseLocationCode, areLocationsEquivalent } from './normalizer.ts';
@@ -24,6 +24,8 @@ export const DEFAULT_VALIDATION_CONFIG: ValidationConfig = {
 };
 
 export interface FormValidationErrors {
+  voiced_location?: string;
+  found_location?: string;
   heard_location?: string;
   actual_location?: string;
   reason?: string;
@@ -42,7 +44,7 @@ export interface FormValidationResult {
  */
 export function validateLocationCode(
   code: string,
-  fieldName: 'Heard location' | 'Actual location',
+  fieldName: 'Voiced location' | 'Found location' | 'Heard location' | 'Actual location',
   config: ValidationConfig = DEFAULT_VALIDATION_CONFIG
 ): string | null {
   const trimmed = code.trim();
@@ -62,7 +64,7 @@ export function validateLocationCode(
   }
 
   if (!config.locationPattern.test(normalised)) {
-    return `${fieldName} contains invalid characters. Use letters (A-Z), numbers (0-9), or standard level symbols (+, -).`;
+    return `${fieldName} contains invalid characters. Permitted characters: letters (A-Z), numbers (0-9), or standard level symbols (+, -).`;
   }
 
   return null;
@@ -77,24 +79,48 @@ export function validateReportSubmission(
 ): FormValidationResult {
   const errors: FormValidationErrors = {};
 
-  // 1. Validate heard_location
-  const heardError = validateLocationCode(payload.heard_location ?? '', 'Heard location', config);
-  if (heardError) {
-    errors.heard_location = heardError;
+  if (payload.honeypot && payload.honeypot.trim()) {
+    return {
+      isValid: false,
+      errors: { general: 'Spam detection triggered. Bot submission rejected.' }
+    };
   }
 
-  // 2. Validate actual_location
-  const actualError = validateLocationCode(payload.actual_location ?? '', 'Actual location', config);
+  const voicedInput = payload.voiced_location ?? payload.heard_location ?? '';
+  const foundInput = payload.found_location ?? payload.actual_location ?? '';
+
+  // 1. Validate heard / voiced location
+  const heardError = validateLocationCode(
+    voicedInput,
+    payload.voiced_location ? 'Voiced location' : 'Heard location',
+    config
+  );
+  if (heardError) {
+    errors.heard_location = heardError;
+    errors.voiced_location = heardError;
+  }
+
+  // 2. Validate actual / found location
+  const actualError = validateLocationCode(
+    foundInput,
+    payload.found_location ? 'Found location' : 'Actual location',
+    config
+  );
   if (actualError) {
     errors.actual_location = actualError;
+    errors.found_location = actualError;
   }
 
   // 3. Validate heard and actual are not identical
-  const heard = payload.heard_location ?? '';
-  const actual = payload.actual_location ?? '';
-  if (!errors.heard_location && !errors.actual_location && areLocationsEquivalent(heard, actual)) {
-    errors.general = 'Heard location and actual location cannot be identical after normalisation.';
-    errors.actual_location = 'Actual location must differ from the heard location.';
+  if (!heardError && !actualError && areLocationsEquivalent(voicedInput, foundInput)) {
+    const isNewNaming = Boolean(payload.voiced_location || payload.found_location);
+    errors.general = isNewNaming
+      ? 'Voiced location and found location cannot be identical after normalisation.'
+      : 'Heard location and actual location cannot be identical after normalisation.';
+    errors.actual_location = isNewNaming
+      ? 'Found location must differ from the voiced location.'
+      : 'Actual location must differ from the heard location.';
+    errors.found_location = errors.actual_location;
   }
 
   // 4. Validate reason
@@ -111,17 +137,32 @@ export function validateReportSubmission(
   }
 
   const isValid = Object.keys(errors).length === 0;
+  const cleanVoiced = normaliseLocationCode(voicedInput);
+  const cleanFound = normaliseLocationCode(foundInput);
+
+  let cleaned: ReportSubmissionPayload | undefined = undefined;
+  if (isValid) {
+    const base: any = {
+      heard_location: cleanVoiced,
+      actual_location: cleanFound,
+      reason: payload.reason as VoiceConfusionReason,
+      details: payload.details?.trim() || undefined
+    };
+    if (payload.voiced_location) {
+      base.voiced_location = cleanVoiced;
+    }
+    if (payload.found_location) {
+      base.found_location = cleanFound;
+    }
+    if (payload.client_hash) {
+      base.client_hash = payload.client_hash;
+    }
+    cleaned = base;
+  }
 
   return {
     isValid,
     errors,
-    cleanedPayload: isValid
-      ? {
-          heard_location: normaliseLocationCode(heard),
-          actual_location: normaliseLocationCode(actual),
-          reason: payload.reason as VoiceConfusionReason,
-          details: payload.details?.trim() || undefined
-        }
-      : undefined
+    cleanedPayload: cleaned
   };
 }
