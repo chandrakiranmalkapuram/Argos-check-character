@@ -69,7 +69,7 @@ describe('Voice Confusion Reference — Shared Persistence & Community Updates',
       const seedRecords = SEED_OBSERVATIONS.filter(s => s.provenance === 'seed_observation');
       const seedIds = seedRecords.map(s => s.id);
 
-      expect(seedIds.length).toBe(4);
+      expect(seedIds.length).toBe(7);
       seedIds.forEach(id => {
         expect(id).toMatch(uuidRegex);
         expect(id.length).toBe(36);
@@ -79,7 +79,7 @@ describe('Voice Confusion Reference — Shared Persistence & Community Updates',
 
       // Verify uniqueness and no collisions
       const uniqueIds = new Set(seedIds);
-      expect(uniqueIds.size).toBe(4);
+      expect(uniqueIds.size).toBe(7);
 
       // Verify all observations in store (including legacy mock samples) have valid UUIDs
       SEED_OBSERVATIONS.forEach(obs => {
@@ -238,9 +238,9 @@ describe('Voice Confusion Reference — Shared Persistence & Community Updates',
       expect(existing.flag_count).toBe(1);                    // Flags preserved
       expect(existing.details).toBe('Community report submitted by warehouse operator');
 
-      // Verify the other 3 non-colliding seeds were inserted successfully
+      // Verify the other 6 non-colliding seeds were inserted successfully
       const allRows = db.prepare('SELECT * FROM voice_confusion_reports').all() as any[];
-      expect(allRows.length).toBe(4); // 1 community + 3 seeds
+      expect(allRows.length).toBe(7); // 1 community + 6 seeds
 
       const seedIds = allRows.map(r => r.id);
       expect(seedIds).toContain('5eed0000-0000-4000-8000-000000000002');
@@ -254,7 +254,7 @@ describe('Voice Confusion Reference — Shared Persistence & Community Updates',
         db.exec(seedSql);
       }).not.toThrow();
       const afterRerun = db.prepare('SELECT * FROM voice_confusion_reports').all() as any[];
-      expect(afterRerun.length).toBe(4);
+      expect(afterRerun.length).toBe(7);
     });
 
     it('simulates PostgreSQL seed migration execution when matching location pair exists under a different UUID (F-01)', async () => {
@@ -342,9 +342,9 @@ describe('Voice Confusion Reference — Shared Persistence & Community Updates',
       expect(existing.flag_count).toBe(2);                    // Flags preserved
       expect(existing.details).toBe('Pre-existing community report from operator');
 
-      // Verify the other 3 non-colliding seeds were inserted
+      // Verify the other 6 non-colliding seeds were inserted
       const allRowsRes = await pg.query('SELECT id, voiced_location, provenance FROM voice_confusion_reports ORDER BY voiced_location;');
-      expect(allRowsRes.rows.length).toBe(4);
+      expect(allRowsRes.rows.length).toBe(7);
       const seedIds = allRowsRes.rows.map((r: any) => r.id);
       expect(seedIds).toContain('5eed0000-0000-4000-8000-000000000002');
       expect(seedIds).toContain('5eed0000-0000-4000-8000-000000000003');
@@ -355,7 +355,7 @@ describe('Voice Confusion Reference — Shared Persistence & Community Updates',
       // Rerun idempotency check: Re-running migration seed must execute without error and preserve exact state (Requirement 5)
       await expect(pg.exec(seedSql)).resolves.not.toThrow();
       const afterRerun = await pg.query('SELECT count(*) as cnt FROM voice_confusion_reports;');
-      expect(Number(afterRerun.rows[0].cnt)).toBe(4);
+      expect(Number(afterRerun.rows[0].cnt)).toBe(7);
     });
   });
 
@@ -982,9 +982,9 @@ describe('Voice Confusion Reference — Shared Persistence & Community Updates',
       );
       expect(Number(confs.rows[0].count)).toBe(1);
 
-      // Verify the other 3 non-colliding seeds were inserted
+      // Verify the other 6 non-colliding seeds were inserted
       const allRows = await pg.query('SELECT id, voiced_location, provenance FROM voice_confusion_reports;');
-      expect(allRows.rows.length).toBe(4);
+      expect(allRows.rows.length).toBe(7);
     });
 
     // 6. Transaction behavior

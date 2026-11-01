@@ -12,11 +12,14 @@
 --      - flag_voice_confusion_observation
 --   5. Updates Row Level Security (RLS) so newly submitted community observations are
 --      immediately retrievable by all visitors.
---   6. Seeds the database idempotently with the four reference observations:
+--   6. Seeds the database idempotently with the seven reference observations:
 --      - 08MN -> 20AN (Store standard format)
 --      - 16ZG -> 16JA (Store standard format, same aisle)
 --      - 81ZE -> 50ER (Store standard format)
 --      - 01MM -> Z01B (Store Bulk zone with special prefix Z)
+--      - J7AZ -> 07AZ (Jewellery heard as Zero)
+--      - S1PG -> 01PG (Security heard as Zero)
+--      - 10AK -> 10KA (Adjacent character swap)
 BEGIN;
 
 -- Advisory transaction lock to serialize migration execution across concurrent operators/processes
@@ -628,6 +631,8 @@ GRANT EXECUTE ON FUNCTION flag_voice_confusion_observation(UUID, TEXT, TEXT) TO 
 -- 12. Row Level Security Policies for Shared Community Reference
 ALTER TABLE voice_confusion_reports ENABLE ROW LEVEL SECURITY;
 
+-- Clean up redundant public SELECT policy from earlier migration now superseded by active community reports policy
+DROP POLICY IF EXISTS "Public can view approved reports" ON voice_confusion_reports;
 -- Allow public visitors to read active community reports
 DROP POLICY IF EXISTS "Public can view active community reports" ON voice_confusion_reports;
 CREATE POLICY "Public can view active community reports"
@@ -637,7 +642,7 @@ TO public
 USING (status IN ('community_submitted', 'confirmed', 'approved'));
 
 -- 12. Idempotent Seed Data Insertion (Requirement 3)
--- Treat these four observations as user-reported observations, not universally verified rules.
+-- Treat these observations as user-reported observations, not universally verified rules.
 -- Lock voice_confusion_reports in SHARE ROW EXCLUSIVE mode during seed insertion
 -- to guarantee no concurrent write races during WHERE NOT EXISTS evaluation
 LOCK TABLE voice_confusion_reports IN SHARE ROW EXCLUSIVE MODE;
@@ -750,6 +755,60 @@ FROM (
       0,
       '2026-10-18T09:30:00Z'::timestamptz,
       '2026-10-18T09:30:00Z'::timestamptz
+    ),
+    (
+      '5eed0000-0000-4000-8000-000000000005'::uuid,
+      NULL::uuid,
+      'J7AZ',
+      '07AZ',
+      'J7AZ',
+      '07AZ',
+      'J7AZ',
+      '07AZ',
+      'similar_sounding',
+      'Seed observation: Voice headset recognized "JEWELLERY SEVEN ALPHA ZULU" instead of "ZERO SEVEN ALPHA ZULU".',
+      'approved',
+      'seed_observation',
+      4,
+      0,
+      '2026-10-18T07:00:00Z'::timestamptz,
+      '2026-10-18T07:00:00Z'::timestamptz
+    ),
+    (
+      '5eed0000-0000-4000-8000-000000000006'::uuid,
+      NULL::uuid,
+      'S1PG',
+      '01PG',
+      'S1PG',
+      '01PG',
+      'S1PG',
+      '01PG',
+      'headset_misrecognition',
+      'Seed observation: Spoken "SECURITY" was confused with "ZERO" in loud aisle background noise.',
+      'approved',
+      'seed_observation',
+      2,
+      0,
+      '2026-10-18T07:15:00Z'::timestamptz,
+      '2026-10-18T07:15:00Z'::timestamptz
+    ),
+    (
+      '5eed0000-0000-4000-8000-000000000007'::uuid,
+      NULL::uuid,
+      '10AK',
+      '10KA',
+      '10AK',
+      '10KA',
+      '10AK',
+      '10KA',
+      'similar_check_character',
+      'Seed observation: Adjacent character swap produces the same check character in standard formula.',
+      'approved',
+      'seed_observation',
+      5,
+      0,
+      '2026-10-18T07:30:00Z'::timestamptz,
+      '2026-10-18T07:30:00Z'::timestamptz
     )
 ) AS v(
   id,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { VoiceConfusionReport } from '../types.ts';
 import { VOICE_CONFUSION_REASONS } from '../types.ts';
-import { searchCommunityReports, confirmReport, flagReport } from '../service.ts';
+import { searchCommunityReports, confirmReport, flagReport, isPersistenceConfigured } from '../service.ts';
 
 interface ReportSearchProps {
   initialQuery?: string;
@@ -204,6 +204,31 @@ export const ReportSearch: React.FC<ReportSearchProps> = ({
         </button>
       </div>
 
+      {/* Database Connection Status Banner */}
+      <div
+        className="vc-disclaimer fade-in"
+        style={{
+          marginBottom: '1rem',
+          background: isPersistenceConfigured() ? 'var(--emerald-50, #ecfdf5)' : 'var(--amber-50, #fffbeb)',
+          borderColor: isPersistenceConfigured() ? 'var(--emerald-300, #6ee7b7)' : 'var(--amber-300, #fcd34d)',
+          padding: '0.6rem 0.9rem'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.875rem' }}>{isPersistenceConfigured() ? '🟢' : '🔶'}</span>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: isPersistenceConfigured() ? 'var(--emerald-900, #064e3b)' : 'var(--amber-900, #78350f)' }}>
+              {isPersistenceConfigured() ? 'Live Database Active (Supabase Connected)' : 'Demonstration Mode (Local Sample Data)'}
+            </span>
+          </div>
+          <span style={{ fontSize: '0.75rem', color: isPersistenceConfigured() ? 'var(--emerald-700, #047857)' : 'var(--amber-700, #b45309)' }}>
+            {isPersistenceConfigured()
+              ? 'Results retrieved from shared community database'
+              : 'Displaying local sample demonstration records. Connect Supabase to search live community submissions.'}
+          </span>
+        </div>
+      </div>
+
       {/* Action Notice Banner */}
       {actionNotice && (
         <div
@@ -337,6 +362,7 @@ export const ReportSearch: React.FC<ReportSearchProps> = ({
               const confirmations = report.confirmations_count || 1;
               const isConfirmed = report.status === 'confirmed' || confirmations >= 3;
               const isSeed = report.provenance === 'seed_observation';
+              const isDemoSample = !isPersistenceConfigured() && (report.id.startsWith('local-') || report.id.startsWith('00000000-'));
               const hasUserConfirmed = confirmedIds.has(report.id);
               const hasUserFlagged = flaggedIds.has(report.id);
 
@@ -346,15 +372,19 @@ export const ReportSearch: React.FC<ReportSearchProps> = ({
                     <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
                       {isSeed ? (
                         <span className="vc-badge vc-badge-pending" style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', borderColor: 'var(--slate-300)' }}>
-                          Seed Observation
+                          📚 Reference Seed
+                        </span>
+                      ) : isDemoSample ? (
+                        <span className="vc-badge vc-badge-pending" style={{ background: 'var(--amber-50)', color: 'var(--amber-800)', borderColor: 'var(--amber-300)' }}>
+                          🧪 Demo Sample
                         </span>
                       ) : isConfirmed ? (
                         <span className="vc-badge vc-badge-approved">
-                          Independently Corroborated ({confirmations} confirmations)
+                          ✅ Corroborated Community Report ({confirmations} confirmations)
                         </span>
                       ) : (
                         <span className="vc-badge vc-badge-community">
-                          Community Report (Unverified — {confirmations} report{confirmations > 1 ? 's' : ''})
+                          👥 Community Report (Unverified — {confirmations} report{confirmations > 1 ? 's' : ''})
                         </span>
                       )}
 
