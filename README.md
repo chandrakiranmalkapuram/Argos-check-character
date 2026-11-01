@@ -10,7 +10,8 @@ Voice-directed picking headsets in high-volume stockrooms (such as Argos) prompt
 - **RFC Location Calculation**: Regional Fulfilment Centre 2-digit algorithm (base 45 + weighted alphabet indices modulo 99).
 - **Reverse Lookup**: Inverted index searching 67,600 store locations (00AA–99ZZ) grouped by aisle for any phonetic check character.
 - **Voice Mistake Alerts**: Identifies confusable locations that share the same check character due to single-letter phonetic errors (e.g., JEWELLERY heard as ZERO) or swapped adjacent digits.
-- **Voice Confusion Risk System**: Shared, persistent warehouse misrecognition reporting backed by Supabase PostgreSQL with open public submissions (no login required), automatic pending review status, duplicate prevention, public approved-only search, and an authenticated admin moderation workflow.
+- **Voice Confusion Risk System**: Shared, persistent warehouse misrecognition reporting backed by Supabase PostgreSQL with open public submissions (no login required), advisory transaction deduplication, community corroboration (+1 confirmations), automatic flag-threshold demotion, public active search, and an authenticated admin moderation workflow.
+- **Authoritative Warehouse Reference Data**: Seven seeded reference observations loaded idempotently in PostgreSQL, clearly badged as 📚 Reference Seed (`seed_observation`) and distinguished from demonstration samples.
 - **Phonetic Pronunciation & Audio**: Displays voice picking phrasing (e.g., `"ONE ZERO ALPHA KILO"`) with one-click Web Speech audio playback.
 - **Recent Search History**: Persisted in local browser storage (`localStorage`) with one-click reload and deletion.
 - **Independent Clean-Room Architecture**: Pure calculation logic in `src/logic/` completely decoupled from React UI components.
@@ -19,14 +20,18 @@ Voice-directed picking headsets in high-volume stockrooms (such as Argos) prompt
 ```
 check-character-by-chandra/
 ├── supabase/
-│   └── migrations/          # PostgreSQL migrations (Base schema, Roles & RLS, Public submissions)
+│   └── migrations/          # PostgreSQL migrations:
+│                            # 1. 20261014000000: Base schema, indexes & duplicate constraints
+│                            # 2. 20261014000001: User roles, auth & RLS
+│                            # 3. 20261014000002: Public submissions & rate limiting
+│                            # 4. 20261019000000: Shared community reference & seed observations
 ├── src/
 │   ├── assets/              # Original branding vector assets
 │   ├── components/          # Core React UI components
 │   ├── hooks/               # Custom React hooks (localStorage search history)
 │   ├── logic/               # Independent check-character calculation engine
 │   ├── voiceConfusion/      # Voice Confusion Risk reporting system
-│   │   ├── __tests__/       # Automated test suite (normalizer, validation, service, moderation)
+│   │   ├── __tests__/       # Comprehensive test suite (migrations, normalizer, RPCs, moderation)
 │   │   ├── components/      # Submission form, preview modal, search, moderator portal
 │   │   ├── normalizer.ts    # Case-insensitive whitespace-trimming (preserves O/0 & I/1)
 │   │   ├── service.ts       # Supabase client / offline fallback data service
@@ -37,7 +42,8 @@ check-character-by-chandra/
 │   ├── styles/              # Design tokens & mobile-first vanilla CSS
 │   ├── App.tsx              # Main application orchestrator
 │   └── main.tsx             # Application mount point
-├── VOICE_CONFUSION_SETUP.md # Supabase setup, RLS and moderator credentials guide
+├── VOICE_CONFUSION_SETUP.md # Complete Supabase, RLS, Cloudflare & moderator guide
+├── HOW_TO_RUN.md            # Execution, testing, and production setup guide
 ├── package.json
 ├── tsconfig.json
 └── vite.config.ts

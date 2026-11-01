@@ -135,10 +135,10 @@ export const SEED_REFERENCE_OBSERVATIONS: VoiceConfusionReport[] = [
     created_at: '2026-10-18T09:30:00.000Z',
     updated_at: '2026-10-18T09:30:00.000Z'
   },
-  // Legacy sample reports for backwards compatibility
+  // Authoritative reference observations (seeds 5, 6, 7)
   {
-    id: '00000000-0000-4000-8000-000000000001',
-    user_id: '00000000-0000-4000-a000-000000000001',
+    id: '5eed0000-0000-4000-8000-000000000005',
+    user_id: null,
     voiced_location: 'J7AZ',
     found_location: '07AZ',
     raw_voiced_location: 'J7AZ',
@@ -152,15 +152,15 @@ export const SEED_REFERENCE_OBSERVATIONS: VoiceConfusionReport[] = [
     reason: 'similar_sounding',
     details: 'Voice headset recognized "JEWELLERY SEVEN ALPHA ZULU" instead of "ZERO SEVEN ALPHA ZULU".',
     status: 'approved',
-    provenance: 'moderator_confirmed',
+    provenance: 'seed_observation',
     confirmations_count: 4,
     flag_count: 0,
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updated_at: new Date(Date.now() - 86400000 * 2).toISOString()
+    created_at: '2026-10-18T07:00:00.000Z',
+    updated_at: '2026-10-18T07:00:00.000Z'
   },
   {
-    id: '00000000-0000-4000-8000-000000000002',
-    user_id: '00000000-0000-4000-a000-000000000002',
+    id: '5eed0000-0000-4000-8000-000000000006',
+    user_id: null,
     voiced_location: 'S1PG',
     found_location: '01PG',
     raw_voiced_location: 'S1PG',
@@ -174,15 +174,15 @@ export const SEED_REFERENCE_OBSERVATIONS: VoiceConfusionReport[] = [
     reason: 'headset_misrecognition',
     details: 'Spoken "SECURITY" was confused with "ZERO" in loud aisle background noise.',
     status: 'approved',
-    provenance: 'moderator_confirmed',
+    provenance: 'seed_observation',
     confirmations_count: 2,
     flag_count: 0,
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-    updated_at: new Date(Date.now() - 86400000 * 4).toISOString()
+    created_at: '2026-10-18T07:15:00.000Z',
+    updated_at: '2026-10-18T07:15:00.000Z'
   },
   {
-    id: '00000000-0000-4000-8000-000000000003',
-    user_id: '00000000-0000-4000-a000-000000000003',
+    id: '5eed0000-0000-4000-8000-000000000007',
+    user_id: null,
     voiced_location: '10AK',
     found_location: '10KA',
     raw_voiced_location: '10AK',
@@ -196,11 +196,11 @@ export const SEED_REFERENCE_OBSERVATIONS: VoiceConfusionReport[] = [
     reason: 'similar_check_character',
     details: 'Adjacent character swap produces the same check character in standard formula.',
     status: 'approved',
-    provenance: 'moderator_confirmed',
+    provenance: 'seed_observation',
     confirmations_count: 5,
     flag_count: 0,
-    created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-    updated_at: new Date(Date.now() - 86400000 * 6).toISOString()
+    created_at: '2026-10-18T07:30:00.000Z',
+    updated_at: '2026-10-18T07:30:00.000Z'
   }
 ];
 
@@ -218,6 +218,13 @@ const protectedServerRolesMap = new Map<string, UserRole>([
   ['moderator@stockroom.test', 'moderator'],
   ['admin@stockroom.test', 'admin']
 ]);
+
+/**
+ * Checks whether database persistence is active (live Supabase credentials configured).
+ */
+export function isPersistenceConfigured(): boolean {
+  return isSupabaseConfigured && supabase !== null;
+}
 
 /**
  * Resets local test store (used for test teardown).
@@ -532,6 +539,16 @@ export async function submitVoiceConfusionReport(
   }
 
   // Local fallback (Only when Supabase is not configured / offline development)
+  const isTestEnvironment =
+    (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process?.env?.NODE_ENV === 'test') ||
+    (import.meta as any).env?.MODE === 'test';
+  if (!isPersistenceConfigured() && !isTestEnvironment) {
+    return {
+      success: false,
+      error: 'Permanent submission is unavailable: Supabase database connection is not configured. Reports cannot be permanently saved.'
+    };
+  }
+
   const now = Date.now();
   const timestamps = (localRateLimitMap.get(rateLimitKey) || []).filter(t => now - t < 10 * 60 * 1000);
   if (timestamps.length >= 5) {
@@ -691,6 +708,16 @@ export async function submitLocationCorrection(
   }
 
   // --- Local In-Memory Fallback Mode (Only when Supabase is not configured / Offline development) ---
+  const isTestEnvironment =
+    (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process?.env?.NODE_ENV === 'test') ||
+    (import.meta as any).env?.MODE === 'test';
+  if (!isPersistenceConfigured() && !isTestEnvironment) {
+    return {
+      success: false,
+      error: 'Permanent submission is unavailable: Supabase database connection is not configured. Submissions cannot be saved to the shared community database.'
+    };
+  }
+
   const now = Date.now();
   const timestamps = (localRateLimitMap.get(rateLimitKey) || []).filter(t => now - t < 10 * 60 * 1000);
   if (timestamps.length >= 5) {

@@ -3,7 +3,7 @@ import type { VoiceConfusionReason, AuthUser } from '../types.ts';
 import { VOICE_CONFUSION_REASONS } from '../types.ts';
 import { validateReportSubmission } from '../validation.ts';
 import { normaliseLocationCode, detectAmbiguousCharacters } from '../normalizer.ts';
-import { submitLocationCorrection } from '../service.ts';
+import { submitLocationCorrection, isPersistenceConfigured } from '../service.ts';
 import { ReportPreviewModal } from './ReportPreviewModal.tsx';
 
 interface ReportSubmissionFormProps {
@@ -31,6 +31,7 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [honeyTrap, setHoneyTrap] = useState('');
+  const isConfigured = isPersistenceConfigured();
 
   // Ambiguity detection for character clarity (O vs 0, I vs 1)
   const voicedAmbiguity = detectAmbiguousCharacters(voicedLocation);
@@ -45,6 +46,11 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
     // Anti-spam honeypot detection
     if (honeyTrap) {
       setServerError('Automated spam submission detected.');
+      return;
+    }
+
+    if (!isConfigured) {
+      setServerError('Permanent submission is unavailable: Supabase database connection is not configured. Submissions cannot be saved to the shared community database.');
       return;
     }
 
@@ -69,6 +75,13 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
     setServerError(null);
     setIsDuplicateWarning(false);
 
+    if (!isConfigured) {
+      setIsPreviewOpen(false);
+      setIsSubmitting(false);
+      setServerError('Permanent submission is unavailable: Supabase database connection is not configured. Submissions cannot be saved to the shared community database.');
+      return;
+    }
+
     try {
       const response = await submitLocationCorrection({
         voiced_location: normaliseLocationCode(voicedLocation),
@@ -87,10 +100,12 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
       // Success (whether new or duplicate corroboration)
       setIsPreviewOpen(false);
       setIsDuplicateWarning(Boolean(response.is_duplicate));
-      setSuccessMessage(
+      const successText =
         response.message ||
-          'Location correction shared successfully! Newly submitted reports are immediately visible to all visitors as unverified community reports.'
-      );
+        (response.is_duplicate
+          ? 'Observation corroborated! Your report has confirmed this existing location mismatch (+1 confirmation).'
+          : 'Location correction shared successfully! Newly submitted reports are immediately recorded in the community database and visible to all visitors.');
+      setSuccessMessage(successText);
 
       // Reset form
       setVoicedLocation('');
@@ -160,6 +175,37 @@ export const ReportSubmissionForm: React.FC<ReportSubmissionFormProps> = ({
           </div>
         )}
       </div>
+
+      {/* Database Persistence Offline Notice */}
+      {!isConfigured && (
+        <div
+          className="vc-disclaimer fade-in"
+          style={{
+            marginBottom: '1.25rem',
+            background: 'var(--amber-50, #fffbeb)',
+            borderColor: 'var(--amber-400, #f59e0b)'
+          }}
+        >
+          <svg
+            className="vc-disclaimer-icon"
+            style={{ color: 'var(--amber-600, #d97706)' }}
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div style={{ fontSize: '0.8125rem', color: 'var(--amber-900, #78350f)', lineHeight: 1.45 }}>
+            <strong>Permanent Database Storage Unavailable:</strong> Supabase database connection is not configured in this build.
+            Permanent community submissions are disabled until production environment variables (<code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>) are supplied.
+          </div>
+        </div>
+      )}
 
       {/* Observation Explanation Notice */}
       <div

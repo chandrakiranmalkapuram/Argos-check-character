@@ -146,20 +146,29 @@ npm run lint
 
 ---
 
-## 8. Supabase Database Configuration (Optional)
+## 8. Supabase Database Configuration & Production Persistence
 
-The application works immediately out-of-the-box in local demo mode without needing any remote server.
+The application works out-of-the-box in local demonstration mode when database credentials are not present.
 
-To connect your own shared **Supabase PostgreSQL** database:
+To enable shared production persistence with **Supabase PostgreSQL**:
 1. Create a Supabase project at [supabase.com](https://supabase.com).
-2. Execute the migrations in sequential order in the Supabase SQL Editor:
-   - [`supabase/migrations/20261014000000_voice_confusion_reports.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000000_voice_confusion_reports.sql) (Base tables, normalisation & duplicate index)
-   - [`supabase/migrations/20261014000001_auth_and_user_roles.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000001_auth_and_user_roles.sql) (User roles & initial RLS)
-   - [`supabase/migrations/20261014000002_allow_public_submissions.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000002_allow_public_submissions.sql) (Public submissions, pending status enforcement & spam rate limiting)
-3. Create a `.env` file in the project root:
+2. Execute all four migrations in sequential order in the Supabase SQL Editor:
+   - **Migration 1:** [`supabase/migrations/20261014000000_voice_confusion_reports.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000000_voice_confusion_reports.sql) (Base tables, normalisation & duplicate index)
+   - **Migration 2:** [`supabase/migrations/20261014000001_auth_and_user_roles.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000001_auth_and_user_roles.sql) (User roles & initial RLS)
+   - **Migration 3:** [`supabase/migrations/20261014000002_allow_public_submissions.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000002_allow_public_submissions.sql) (Public submissions & pending review status)
+   - **Migration 4:** [`supabase/migrations/20261019000000_voice_confusion_reference.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261019000000_voice_confusion_reference.sql) (Shared community reference, deduplication advisory locks, corroboration/flagging RPCs, clean public SELECT policy, and 7 authoritative reference observations including `J7AZ->07AZ`, `S1PG->01PG`, `10AK->10KA`)
+3. **Frontend Build Variables:**
+   Create `.env` locally or configure Cloudflare Pages build environment variables:
    ```bash
-   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_URL=https://your-project-ref.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
    ```
-4. Restart the dev server (`npm run dev`).
-5. Full details on setting up live moderators are documented in [`VOICE_CONFUSION_SETUP.md`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/VOICE_CONFUSION_SETUP.md).
+   *Note: In Cloudflare Pages, add these under **Settings** -> **Environment variables** (Production), then trigger a redeploy so Vite bakes them into the static bundle.*
+4. **Distinguishing Demonstration vs Live Data:**
+   - When connected to Supabase, the community search header displays `🟢 Live Database Active`.
+   - Authoritative seed data carries the 📚 `Reference Seed` badge.
+   - Genuine user contributions carry ✅ `Corroborated Community Report` (2+ confirmations) or 👥 `Community Report (Unverified)` (1 confirmation).
+   - In-memory mock data (used only when unconfigured) carries 🧪 `Demo Sample` and is never written to Supabase.
+5. **Provisioning Administrators:**
+   Admins and moderators are provisioned server-side via SQL in `public.user_roles`. Detailed instructions and verification checklists are in [`VOICE_CONFUSION_SETUP.md`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/VOICE_CONFUSION_SETUP.md).
+

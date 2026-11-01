@@ -103,6 +103,27 @@ FROM (
     'other',
     'Seed observation: Headset phrased Bulk location Z01B as "ZERO ONE BULK BRAVO", which worker mistook for standard aisle 01MM ("ZERO ONE MIKE MIKE").',
     'community_submitted', 'seed_observation', 1, 0
+  UNION ALL
+  SELECT
+    '5eed0000-0000-4000-8000-000000000005', NULL,
+    'J7AZ', '07AZ', 'J7AZ', '07AZ', 'J7AZ', '07AZ',
+    'similar_sounding',
+    'Seed observation: Voice headset recognized "JEWELLERY SEVEN ALPHA ZULU" instead of "ZERO SEVEN ALPHA ZULU".',
+    'approved', 'seed_observation', 4, 0
+  UNION ALL
+  SELECT
+    '5eed0000-0000-4000-8000-000000000006', NULL,
+    'S1PG', '01PG', 'S1PG', '01PG', 'S1PG', '01PG',
+    'headset_misrecognition',
+    'Spoken "SECURITY" was confused with "ZERO" in loud aisle background noise.',
+    'approved', 'seed_observation', 2, 0
+  UNION ALL
+  SELECT
+    '5eed0000-0000-4000-8000-000000000007', NULL,
+    '10AK', '10KA', '10AK', '10KA', '10AK', '10KA',
+    'similar_check_character',
+    'Seed observation: Adjacent character swap produces the same check character in standard formula.',
+    'approved', 'seed_observation', 5, 0
 ) AS v
 WHERE NOT EXISTS (
   SELECT 1 FROM voice_confusion_reports r
