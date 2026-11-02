@@ -113,7 +113,7 @@ export function parseLocationCode(rawInput: string): ParsedLocationCode {
   }
 
   // 5. Check if candidate is RFC format (4 letters)
-  if (isRfcCandidate(normalized)) {
+  if (normalized.length === 4 && isRfcCandidate(normalized)) {
     return {
       kind: 'unsupported',
       raw: rawInput,
@@ -123,7 +123,19 @@ export function parseLocationCode(rawInput: string): ParsedLocationCode {
     };
   }
 
-  // 6. Generic invalid format
+  // 6. Check inputs longer than 4 characters
+  if (normalized.length > 4) {
+    const candidate4 = normalized.substring(0, 4);
+    return {
+      kind: 'unsupported',
+      raw: rawInput,
+      normalized,
+      reason: 'invalid_format',
+      message: `Input has more than 4 characters; the calculator used the first four ('${candidate4}'). Suggestions are only shown for exact 4-character codes.`
+    };
+  }
+
+  // 7. Generic invalid format
   return {
     kind: 'unsupported',
     raw: rawInput,
