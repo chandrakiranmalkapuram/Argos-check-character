@@ -6,6 +6,7 @@ import {
   RETURNS_ALIASES
 } from './constants.ts';
 import type { CalculationResult } from './types.ts';
+import { tokenizeStoreLocation, tokensToSpokenText } from './voiceConfusion/tokenizer.ts';
 
 /**
  * Converts a single character into its phonetic or spoken word.
@@ -23,50 +24,10 @@ export function getSpokenWord(char: string): string {
 
 /**
  * Constructs the spoken voice-picking phrase matching headset conventions.
+ * Delegates to the unified tokenizer core while preserving the exported function API.
  */
-export function formatStoreSpokenText(location: string, individualWords: string[]): string {
-  const upper = location.toUpperCase();
-  const prefix2 = upper.substring(0, 2);
-  const firstChar = upper[0] ?? '';
-  const lastChar = upper.slice(-1);
-
-  let phrase = individualWords.join(' ');
-
-  if (firstChar === 'J') {
-    // Jewellery: e.g. J1PG -> JEWELLERY ONE PAPA GOLF
-    phrase = `JEWELLERY ${individualWords.slice(1).join(' ')}`;
-  } else if (firstChar === 'S') {
-    // Security: e.g. S1PG -> SECURITY ONE PAPA GOLF
-    phrase = `SECURITY ${individualWords.slice(1).join(' ')}`;
-  } else if (firstChar === 'L' && individualWords.length >= 4) {
-    // Linbin: e.g. L10A -> ONE ZERO LINBIN ALPHA
-    phrase = `${individualWords.slice(1, 3).join(' ')} LINBIN ${individualWords[3]}`;
-  } else if (firstChar === 'Z' && individualWords.length >= 4) {
-    // Bulk: e.g. Z10A -> ONE ZERO BULK ALPHA
-    phrase = `${individualWords.slice(1, 3).join(' ')} BULK ${individualWords[3]}`;
-  }
-
-  // Relative location markers (+ / -)
-  if (lastChar === '+') {
-    phrase = `AFTER ${individualWords.slice(0, 3).join(' ')}`;
-  } else if (lastChar === '-') {
-    phrase = `BEFORE ${individualWords.slice(0, 3).join(' ')}`;
-  }
-
-  // Fixed zone names
-  if (prefix2 === 'CA') {
-    phrase = `CASH OFFICE ${individualWords.slice(2).join(' ')}`;
-  } else if (prefix2 === 'CP') {
-    phrase = `COLLECTION POINT ${individualWords.slice(2).join(' ')}`;
-  } else if (upper === 'RETS' || RETURNS_ALIASES.includes(upper as (typeof RETURNS_ALIASES)[number])) {
-    phrase = 'RETURNS';
-  } else if (upper.startsWith('DPA')) {
-    phrase = 'DPA';
-  } else if (upper.startsWith('SOB')) {
-    phrase = 'SOB';
-  }
-
-  return phrase;
+export function formatStoreSpokenText(location: string, _individualWords?: string[]): string {
+  return tokensToSpokenText(tokenizeStoreLocation(location));
 }
 
 /**
