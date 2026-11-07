@@ -182,7 +182,7 @@ const DOCUMENTED_HEURISTICS: readonly AcousticSubstitution[] = [
 /**
  * Checks whether a candidate code is a valid warehouse location format.
  */
-export function isSyntacticallyValidCode(code: string): boolean {
+function isSyntacticallyValidCode(code: string): boolean {
   const upper = code.trim().toUpperCase();
   if (upper.length !== 4) return false;
   return isValidStorePattern(upper) || isRfcCandidate(upper);
@@ -191,7 +191,7 @@ export function isSyntacticallyValidCode(code: string): boolean {
 /**
  * Computes check character and spoken phrasing for any candidate code.
  */
-export function getCandidateCheckInfo(code: string): { checkChar: string; spokenText: string } {
+function getCandidateCheckInfo(code: string): { checkChar: string; spokenText: string } {
   const store = calculateStoreCheckChar(code);
   if (store.isValid && store.checkChar !== 'NULL') {
     return {

@@ -302,12 +302,6 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
               e.preventDefault();
               setIsPossibleOpen(prev => !prev);
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setIsPossibleOpen(prev => !prev);
-              }
-            }}
           >
             <span className="vc-disclosure-title">
               Possible sound-alikes ({possibleMatches.length})
@@ -348,12 +342,6 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
           onClick={(e) => {
             e.preventDefault();
             setIsArithmeticOpen(prev => !prev);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              setIsArithmeticOpen(prev => !prev);
-            }
           }}
         >
           <span className="vc-disclosure-title">
@@ -459,12 +447,6 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
             onClick={(e) => {
               e.preventDefault();
               setIsDiffCheckOpen(prev => !prev);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setIsDiffCheckOpen(prev => !prev);
-              }
             }}
           >
             <span className="vc-disclosure-title">
@@ -761,12 +743,6 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
           onClick={(e) => {
             e.preventDefault();
             setIsModelDetailsOpen(prev => !prev);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              setIsModelDetailsOpen(prev => !prev);
-            }
           }}
         >
           Model details (model assessment, not a probability)

@@ -207,6 +207,9 @@ A candidate is elevated to **Tier 1 (Reported sound-alike)** if and only if **AL
    - Either `status` is `'approved'` or `'confirmed'`;
    - **OR** `provenance` is `'moderator_confirmed'` with `status = 'community_submitted'`.
 
+> [!NOTE]
+> In the current PostgreSQL schema and service code, only reports with `status` `'approved'` or `'confirmed'` can elevate a candidate in production. The `provenance = 'moderator_confirmed'` branch exists for future extensibility when moderation workflows directly mutate the provenance column. Today, nothing in the migrations, database RPCs, or service layer sets `provenance = 'moderator_confirmed'`.
+
 Disallowed statuses (`flagged`, `'rejected'`, `'archived'`, `'pending'`) with `moderator_confirmed` provenance do **not** elevate.
 
 ### Free-Text Details Handling (Decision D14)

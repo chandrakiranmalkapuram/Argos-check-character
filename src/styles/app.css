@@ -546,46 +546,7 @@ body {
   }
 }
 
-/* Similar Locations Warning Alert */
-.similar-alert-card {
-  background: var(--amber-50);
-  border: 1px solid var(--amber-500);
-  border-radius: var(--radius-md);
-  padding: 1rem 1.125rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-}
-
-.similar-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--amber-600);
-  font-weight: 700;
-  font-size: 0.875rem;
-}
-
-.similar-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.similar-item {
-  background: var(--white);
-  border: 1px solid var(--amber-100);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.75rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
-}
-
+/* Pill style for location tags (shared with Voice Confusion Reference search) */
 .similar-loc-pill {
   font-family: var(--font-mono);
   font-weight: 800;
@@ -593,12 +554,6 @@ body {
   background: var(--slate-100);
   padding: 0.15rem 0.4rem;
   border-radius: var(--radius-sm);
-}
-
-.similar-reason {
-  color: var(--slate-600);
-  font-size: 0.75rem;
-  font-style: italic;
 }
 
 /* Reverse Lookup View */
@@ -898,76 +853,7 @@ body {
    Clean, modern, warehouse-optimised, accessible, high-contrast, uncluttered
    ============================================================================ */
 
-.vc-suggestions-container {
-  background: var(--white);
-  border: 1px solid var(--slate-200);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 1.25rem;
-}
 
-.vc-suggestions-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  border-bottom: 1px solid var(--slate-100);
-  padding-bottom: 0.875rem;
-}
-
-.vc-suggestions-header-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.vc-suggestions-title-group {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
-  flex: 1;
-  min-width: 240px;
-}
-
-.vc-suggestions-icon-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-md);
-  background: var(--blue-50);
-  color: var(--blue-600);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.vc-suggestions-title {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.0625rem;
-  font-weight: 700;
-  color: var(--navy-900);
-  letter-spacing: -0.01em;
-}
-
-.vc-suggestions-desc {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--slate-600);
-  line-height: 1.45;
-}
-
-.vc-suggestions-db-btn {
-  font-size: 0.8125rem;
-  padding: 0.4rem 0.85rem;
-  white-space: nowrap;
-  align-self: flex-start;
-}
 
 .vc-suggestions-summary-bar {
   display: flex;
@@ -1264,23 +1150,12 @@ body {
 }
 
 @media (max-width: 480px) {
-  .vc-suggestions-container {
-    padding: 1rem;
-  }
   .vc-candidate-header {
     flex-direction: column;
     align-items: stretch;
   }
   .vc-candidate-select-btn {
     width: 100%;
-    justify-content: center;
-  }
-  .vc-suggestions-header-main {
-    flex-direction: column;
-  }
-  .vc-suggestions-db-btn {
-    width: 100%;
-    text-align: center;
     justify-content: center;
   }
 }
@@ -1730,11 +1605,6 @@ body {
   margin: 0;
 }
 
-.vc-diff-check-details {
-  font-size: 0.75rem;
-  color: var(--slate-600);
-  margin: 0;
-}
 
 /* Buttons */
 .vc-btn {

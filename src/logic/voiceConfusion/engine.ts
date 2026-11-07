@@ -116,8 +116,12 @@ function buildPlainEnglishExplanation(
  * - Decision D9: Reported pairs section includes all same-check pairs with labels and badges.
  * - Decision D11: Option A. Only reasons 'similar_sounding' and 'headset_misrecognition', combined with
  *   status 'approved'/'confirmed' or provenance 'moderator_confirmed' (never seed_observation), may raise a tier.
+ *   Note: in the current database schema and service implementation, only status 'approved' or 'confirmed'
+ *   can elevate a report in practice; the 'moderator_confirmed' provenance check exists for future use when
+ *   moderator workflows directly mutate report provenance.
  *   Reports with reason 'similar_check_character' or 'other' appear in reportedPairs with label
  *   "Reported (layout / check-character), does not affect ranking". Submitter reasons are inherently
+ *   unreliable, so non-acoustic reasons are strictly prevented from elevating candidate ranking.
  * - Decision D12: TOKEN_GAP_COST fixed at 0.90. At this setting, gapped alignment equals fixed-position
  *   for all tested pairs, but is NOT mathematically identical for all equal-length codes (e.g. aisles
  *   13 vs 39 with identical letters: fixed 1.97 vs gapped 1.80). Gapped alignment primarily matters

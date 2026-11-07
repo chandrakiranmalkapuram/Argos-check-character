@@ -490,8 +490,8 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
     });
   });
 
-  describe('8. Disclosures Keyboard Operability and aria-expanded State', () => {
-    it('disclosures are keyboard-operable with Space and Enter and reflect aria-expanded state', async () => {
+  describe('8. Disclosures Element Types and aria-expanded State', () => {
+    it('disclosures use native summary elements and reflect aria-expanded state on toggle (real keyboard behaviour requires manual browser check)', async () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [],
@@ -507,15 +507,19 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       });
 
       const poolSummary = screen.getByRole('button', { name: /All same-check codes/i });
+
+      // Assert element type: native <summary> disclosure element
+      expect(poolSummary.tagName.toLowerCase()).toBe('summary');
       expect(poolSummary.getAttribute('aria-expanded')).toBe('false');
 
-      // Operate with Enter key to expand
-      fireEvent.keyDown(poolSummary, { key: 'Enter', code: 'Enter' });
+      // Click toggles open (native <summary> elements handle Space and Enter natively in real browsers;
+      // jsdom does not dispatch native user-agent keyboard toggle for <details>, so real keyboard behaviour requires manual browser verification)
+      fireEvent.click(poolSummary);
       expect(poolSummary.getAttribute('aria-expanded')).toBe('true');
       expect(screen.getByPlaceholderText(/Filter same-check codes/i)).toBeTruthy();
 
-      // Operate with Space key to collapse
-      fireEvent.keyDown(poolSummary, { key: ' ', code: 'Space' });
+      // Click toggles closed
+      fireEvent.click(poolSummary);
       expect(poolSummary.getAttribute('aria-expanded')).toBe('false');
     });
 

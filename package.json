@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "test:full": "FULL_TEST_SUITE=1 vitest run"
+    "test:full": "FULL_TEST_SUITE=1 vitest run",
+    "benchmark:voice": "node --experimental-strip-types scripts/run_voice_confusion_benchmark.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
