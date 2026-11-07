@@ -2,9 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { suggestConfusions } from '../voiceConfusion/engine.ts';
 import { calculateStoreCheckChar } from '../storeCalculator.ts';
 import { enumerateGrammarLocations, parseLocationCode } from '../voiceConfusion/grammar.ts';
-import { compareGappedAlignment, TOKEN_GAP_COST } from '../voiceConfusion/phonetics/comparators.ts';
+import { compareGappedAlignment, compareFixedPosition, TOKEN_GAP_COST } from '../voiceConfusion/phonetics/comparators.ts';
 import { tokenizeStoreLocation } from '../voiceConfusion/tokenizer.ts';
-import { MODEL_SIMILAR_TOKEN_THRESHOLD } from '../voiceConfusion/phonetics/tokenDistanceTable.ts';
 import type { VoiceConfusionReport } from '../voiceConfusion/types.ts';
 
 declare const process: { env: Record<string, string | undefined> };
@@ -328,44 +327,81 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
       expect(rep10BZ?.reason).toBe('other');
     });
 
-    it('verifies gap-aligned tokens count as farTokens (distance 0.90) and contribute to differingTokens cap', () => {
-      // CA01 (Cash Office) tokenizes to 3 tokens: ['CASH OFFICE', 'ZERO', 'ONE']
-      // 01AA (Standard) tokenizes to 4 tokens: ['ZERO', 'ONE', 'ALPHA', 'ALPHA']
-      const tokensA = tokenizeStoreLocation('CA01');
-      const tokensB = tokenizeStoreLocation('01AA');
+    it('verifies D12: gapped alignment is cheaper than fixed-position for rare equal-length pairs (aisles 13 vs 39 with identical letters)', () => {
+      // 13AA: ['ONE', 'THREE', 'ALPHA', 'ALPHA']
+      // 39AA: ['THREE', 'NINE', 'ALPHA', 'ALPHA']
+      const tokensA = tokenizeStoreLocation('13AA');
+      const tokensB = tokenizeStoreLocation('39AA');
 
-      expect(tokensA.length).toBe(3);
-      expect(tokensB.length).toBe(4);
+      const fixedComp = compareFixedPosition(tokensA, tokensB);
+      const gappedComp = compareGappedAlignment(tokensA, tokensB);
 
-      const comp = compareGappedAlignment(tokensA, tokensB);
+      // Fixed alignment: ONE/THREE (0.9667) + THREE/NINE (1.0000) + ALPHA/ALPHA (0) + ALPHA/ALPHA (0) = 1.9667 (~1.97)
+      expect(fixedComp.totalDistance).toBeCloseTo(1.9667, 3);
 
-      // Verify gap pair exists with null token and distance equal to TOKEN_GAP_COST (0.90)
-      const gapPair = comp.alignment.find(p => p.tokenA === null || p.tokenB === null);
-      expect(gapPair).toBeDefined();
-      expect(gapPair?.distance).toBe(TOKEN_GAP_COST);
-      expect(gapPair?.distance).toBe(0.9);
+      // Gapped alignment: aligns THREE/THREE (0) with two gap penalties (2 × 0.90 = 1.80)
+      expect(gappedComp.totalDistance).toBeCloseTo(1.80, 2);
 
-      // Verify gap distance exceeds MODEL_SIMILAR_TOKEN_THRESHOLD (0.55), making it a far token
-      expect(gapPair!.distance).toBeGreaterThan(MODEL_SIMILAR_TOKEN_THRESHOLD);
+      // Real comparator output proves gapped is cheaper (1.80 < 1.9667)
+      expect(gappedComp.totalDistance).toBeLessThan(fixedComp.totalDistance);
+    });
 
-      // Verify how engine counts tokens: gap token increments farTokens and differingTokens
-      let farTokens = 0;
-      let nearTokens = 0;
-      for (const pair of comp.alignment) {
-        if (pair.distance === 0) continue;
-        if (pair.distance <= MODEL_SIMILAR_TOKEN_THRESHOLD) {
-          nearTokens++;
-        } else {
-          farTokens++;
-        }
+    it('engine-level: Cash Office or Collection Point input against standard candidate (and reverse) asserts collapsed tier and that differing-token cap counts gap tokens', () => {
+      // 1. Cash Office Input CA01 (3 tokens: CASH OFFICE, ZERO, ONE; checkChar: ZULU)
+      const resCA = suggestConfusions('CA01', { includeArithmeticCollisions: true });
+      expect(resCA.isValid).toBe(true);
+      expect(resCA.checkChar).toBe('ZULU');
+
+      // Candidate 70WW is standard format (4 tokens: SEVEN, ZERO, WHISKEY, WHISKEY; checkChar: ZULU)
+      const cand70WW = resCA.candidates.find(c => c.location === '70WW');
+      expect(cand70WW).toBeDefined();
+
+      // Gapped alignment produces gap token with distance TOKEN_GAP_COST (0.90)
+      const gapSlot = cand70WW!.alignment.find(s => s.tokenA === null || s.tokenB === null);
+      expect(gapSlot).toBeDefined();
+      expect(gapSlot?.distance).toBe(TOKEN_GAP_COST);
+      expect(gapSlot?.distance).toBe(0.9);
+
+      // Gap token exceeds near threshold (> 0.55), counting as a far token towards differing-token cap.
+      // Total differing tokens = 3 (CASH OFFICE/SEVEN, null/WHISKEY gap, ONE/WHISKEY), which exceeds
+      // MAX_DIFFERING_TOKENS_TIER2 (2) and MAX_DIFFERING_TOKENS_TIER3 (2).
+      // Thus, cand70WW is excluded from Tier 1, 2, and 3, and categorized into arithmetic_collision.
+      expect(cand70WW!.tier).toBe('arithmetic_collision');
+
+      // Default query (without includeArithmeticCollisions) has 0 candidates for CA01
+      const defaultResCA = suggestConfusions('CA01');
+      expect(defaultResCA.candidates).toHaveLength(0);
+
+      // 2. REVERSE DIRECTION: Standard format input 70WW against Cash Office candidate CA01
+      const resReverse = suggestConfusions('70WW', { includeArithmeticCollisions: true });
+      expect(resReverse.isValid).toBe(true);
+      expect(resReverse.checkChar).toBe('ZULU');
+
+      const candCA01 = resReverse.candidates.find(c => c.location === 'CA01');
+      expect(candCA01).toBeDefined();
+
+      // Reverse alignment also contains gap token (0.90) counting towards differing-token cap
+      const reverseGapSlot = candCA01!.alignment.find(s => s.tokenA === null || s.tokenB === null);
+      expect(reverseGapSlot).toBeDefined();
+      expect(reverseGapSlot?.distance).toBe(TOKEN_GAP_COST);
+      expect(reverseGapSlot?.tokenA).toBe('WHISKEY');
+      expect(reverseGapSlot?.tokenB).toBeNull();
+      expect(candCA01!.tier).toBe('arithmetic_collision');
+
+      // 3. Collection Point Input CP01 (3 tokens: COLLECTION POINT, ZERO, ONE; checkChar: ALPHA)
+      const resCP = suggestConfusions('CP01', { includeArithmeticCollisions: true });
+      expect(resCP.isValid).toBe(true);
+      expect(resCP.checkChar).toBe('ALPHA');
+
+      // All standard candidates with checkChar ALPHA have gap tokens and are collapsed into arithmetic_collision
+      const standardCands = resCP.candidates.filter(c => c.pattern === 'standard');
+      expect(standardCands.length).toBeGreaterThan(0);
+      for (const cand of standardCands) {
+        expect(cand.tier).toBe('arithmetic_collision');
+        const hasGap = cand.alignment.some(s => s.tokenA === null || s.tokenB === null);
+        expect(hasGap).toBe(true);
       }
-      expect(farTokens).toBeGreaterThanOrEqual(1);
-      const differingTokens = nearTokens + farTokens;
-      expect(differingTokens).toBeGreaterThanOrEqual(1);
-
-      // A location with a gap token can NEVER be Tier 2 because Tier 2 requires farTokens === 0
-      const satisfiesTier2 = farTokens === 0;
-      expect(satisfiesTier2).toBe(false);
+      expect(suggestConfusions('CP01').candidates).toHaveLength(0);
     });
   });
 

@@ -3,6 +3,9 @@ import {
   fetchEvidenceForLocation,
   getEvidenceSuggestions,
   clearEvidenceCache,
+  refreshEvidenceForLocation,
+  setCachedEvidence,
+  EVIDENCE_CACHE_TTL_MS,
   CommittedEvidenceCoordinator
 } from '../evidenceAdapter.ts';
 import * as serviceModule from '../service.ts';
@@ -335,5 +338,111 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       // Only the last committed request ('10AK') should have completed
       expect(results).toEqual(['10AK']);
     });
+
+    it('expires cached evidence after 5 minutes (TTL = 300,000 ms)', async () => {
+      vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
+      const fetchSpy = vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
+        reports: [baseReport()],
+        isTruncated: false
+      });
+
+      // Populate cache at time T0
+      await fetchEvidenceForLocation('10AK');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Expire cache manually (simulate 5 minutes + 1 second elapsed)
+      const expiredTimestamp = Date.now() - (EVIDENCE_CACHE_TTL_MS + 1000);
+      setCachedEvidence('10AK', { kind: 'available', reports: [baseReport()], isTruncated: false }, expiredTimestamp);
+
+      // Next call must detect expired entry and refetch
+      await fetchEvidenceForLocation('10AK');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('manual refresh path (refreshEvidenceForLocation) bypasses cache and updates cache', async () => {
+      vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
+      const fetchSpy = vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
+        reports: [baseReport()],
+        isTruncated: false
+      });
+
+      await fetchEvidenceForLocation('10AK');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Manual refresh
+      const refreshed = await refreshEvidenceForLocation('10AK');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(refreshed.kind).toBe('available');
+    });
+
+    it('ignores stale in-flight response when committed input has changed while request was in flight', async () => {
+      vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
+
+      const coordinator = new CommittedEvidenceCoordinator();
+      const results: string[] = [];
+
+      // Mock fetchLocationReports with variable delays
+      vi.spyOn(serviceModule, 'fetchLocationReports').mockImplementation(async (loc: string) => {
+        if (loc === '10AK') {
+          // Slow response: 80ms
+          await new Promise(r => setTimeout(r, 80));
+          return { reports: [baseReport({ voiced_location: '10AK' })], isTruncated: false };
+        } else {
+          // Fast response: 10ms
+          await new Promise(r => setTimeout(r, 10));
+          return { reports: [baseReport({ voiced_location: '21EZ', found_location: '11BZ' })], isTruncated: false };
+        }
+      });
+
+      // Commit 1st input '10AK' (slow, in flight)
+      const p1 = coordinator.commitInput('10AK', res => {
+        results.push(`P1:${res.suggestionResult.inputLocation}`);
+      }, { bypassCache: true });
+
+      // Immediate commit of 2nd input '21EZ' (fast)
+      const p2 = coordinator.commitInput('21EZ', res => {
+        results.push(`P2:${res.suggestionResult.inputLocation}`);
+      }, { bypassCache: true });
+
+      await Promise.all([p1, p2]);
+
+      // Only the 2nd committed input '21EZ' must have delivered its callback.
+      // The 1st in-flight response ('10AK') finished later and was strictly ignored!
+      expect(results).toEqual(['P2:21EZ']);
+    });
+  });
+
+  describe('8. Input Hardening: Hostile String Rejection (Security & PostgREST Safety)', () => {
+    const hostileInputs = [
+      '10AK,status.eq.rejected',
+      '10AK)',
+      '10AK.',
+      '*',
+      '10AK%2C',
+      'A'.repeat(5000)
+    ];
+
+    for (const hostile of hostileInputs) {
+      it(`rejects hostile input "${hostile.length > 20 ? hostile.slice(0, 15) + '... (5000 chars)' : hostile}" without querying database`, async () => {
+        vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
+        const fetchSpy = vi.spyOn(serviceModule, 'fetchLocationReports');
+
+        // fetchEvidenceForLocation must return 'unavailable' with reason 'invalid_location_format'
+        const result = await fetchEvidenceForLocation(hostile, { forceConfigured: true });
+        expect(result.kind).toBe('unavailable');
+        if (result.kind === 'unavailable') {
+          expect(result.userMessage).toBe('community evidence unavailable');
+          expect(result.reason).toBe('invalid_location_format');
+        }
+
+        // fetchEvidenceForLocation rejected before calling fetchLocationReports
+        expect(fetchSpy).not.toHaveBeenCalled();
+
+        // Direct call to fetchLocationReports also rejects immediately with an Error
+        await expect(serviceModule.fetchLocationReports(hostile)).rejects.toThrow(
+          /Invalid location code format for reports query/
+        );
+      });
+    }
   });
 });

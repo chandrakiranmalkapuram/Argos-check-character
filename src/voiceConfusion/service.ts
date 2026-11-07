@@ -14,7 +14,7 @@
 
 import { supabase, isSupabaseConfigured } from './supabaseClient.ts';
 import { normaliseLocationCode, getReportCompositeKey } from './normalizer.ts';
-import { validateReportSubmission } from './validation.ts';
+import { validateReportSubmission, LOCATION_FILTER_ALLOWLIST_REGEX } from './validation.ts';
 import { SEED_REFERENCE_OBSERVATIONS as PURE_SEED_REFERENCE_OBSERVATIONS } from '../logic/voiceConfusion/seedObservations.ts';
 import type {
   VoiceConfusionReport,
@@ -1067,12 +1067,35 @@ export interface LocationReportsResult {
 /**
  * Targeted read-only query for reports where voiced or found location equals the normalised input.
  *
- * Compliance:
- * - Read-only SELECT matching public RLS policy.
- * - Filters for statuses ['community_submitted', 'confirmed', 'approved'].
- * - Exact-match lookup on normalised columns (voiced_location_norm / found_location_norm).
- * - Explicitly bounded with a limit parameter (default 100).
- * - Flags isTruncated = true when database rows exceed the limit.
+/**
+ * Exact columns required by the voice confusion engine.
+ * Selecting only these columns reduces payload size, avoids leaking user_id or
+ * internal moderator_notes, and improves query performance.
+ */
+export const ENGINE_REPORT_SELECT_COLUMNS = [
+  'id',
+  'voiced_location',
+  'found_location',
+  'voiced_location_norm',
+  'found_location_norm',
+  'reason',
+  'details',
+  'status',
+  'provenance',
+  'confirmations_count',
+  'created_at'
+].join(', ');
+
+/**
+ * Milestone 5: Targeted exact-location lookup for the suggestion engine.
+ *
+ * Hardening & Security Guarantees:
+ * - Validates normalized input against strict allow-list (^[A-Z0-9+/-]{2,10}$) BEFORE placing in any filter.
+ * - Parameter-safe filters: uses two indexed .eq() queries on voiced_location_norm and found_location_norm
+ *   merged client-side, avoiding filter injection.
+ * - Exact column projection: selects only engine-consumed columns (ENGINE_REPORT_SELECT_COLUMNS) instead of '*'.
+ * - Deterministic ordering: orders by created_at DESC with id ASC as a tie-breaker.
+ * - Explicit limit bounded to prevent unbounded reads; detects truncation when rows exceed limit.
  */
 export async function fetchLocationReports(
   normalizedLocation: string,
@@ -1083,25 +1106,65 @@ export async function fetchLocationReports(
     return { reports: [], isTruncated: false };
   }
 
-  if (isSupabaseConfigured && supabase) {
-    // Request limit + 1 to detect if results were truncated
-    const { data, error } = await supabase
-      .from('voice_confusion_reports')
-      .select('*')
-      .in('status', ['community_submitted', 'confirmed', 'approved'])
-      .or(
-        `voiced_location_norm.eq.${cleanLoc},found_location_norm.eq.${cleanLoc},voiced_location.eq.${cleanLoc},found_location.eq.${cleanLoc}`
-      )
-      .order('created_at', { ascending: false })
-      .limit(limit + 1);
+  // Input hardening: validate against strict allow-list BEFORE placing in any filter.
+  // Hostile strings are rejected immediately and never reach Supabase.
+  if (!LOCATION_FILTER_ALLOWLIST_REGEX.test(cleanLoc)) {
+    throw new Error(`Invalid location code format for reports query: "${cleanLoc}"`);
+  }
 
-    if (error) {
-      console.error('fetchLocationReports query failed:', error);
-      throw new Error(error.message || 'Database query failed');
+  if (isSupabaseConfigured && supabase) {
+    // Parameter-safe queries using two .eq() filters merged client-side.
+    // Each query targets a single-column index (idx_voice_confusion_voiced_norm
+    // or idx_voice_confusion_found_norm) with parameterized equality.
+    const [voicedRes, foundRes] = await Promise.all([
+      supabase
+        .from('voice_confusion_reports')
+        .select(ENGINE_REPORT_SELECT_COLUMNS)
+        .in('status', ['community_submitted', 'confirmed', 'approved'])
+        .eq('voiced_location_norm', cleanLoc)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(limit + 1),
+      supabase
+        .from('voice_confusion_reports')
+        .select(ENGINE_REPORT_SELECT_COLUMNS)
+        .in('status', ['community_submitted', 'confirmed', 'approved'])
+        .eq('found_location_norm', cleanLoc)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(limit + 1)
+    ]);
+
+    if (voicedRes.error) {
+      console.error('fetchLocationReports query failed (voiced):', voicedRes.error);
+      throw new Error(voicedRes.error.message || 'Database query failed');
+    }
+    if (foundRes.error) {
+      console.error('fetchLocationReports query failed (found):', foundRes.error);
+      throw new Error(foundRes.error.message || 'Database query failed');
     }
 
-    const allData = (data as VoiceConfusionReport[]) || [];
-    const isTruncated = allData.length > limit;
+    // Merge and deduplicate client-side by id
+    const reportMap = new Map<string, VoiceConfusionReport>();
+    for (const r of ((voicedRes.data as unknown as VoiceConfusionReport[]) || [])) {
+      reportMap.set(r.id, r);
+    }
+    for (const r of ((foundRes.data as unknown as VoiceConfusionReport[]) || [])) {
+      reportMap.set(r.id, r);
+    }
+
+    // Sort deterministically: created_at DESC with id ASC as tie-breaker
+    const allData = Array.from(reportMap.values()).sort((a, b) => {
+      const timeDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return a.id.localeCompare(b.id);
+    });
+
+    const isTruncated =
+      (voicedRes.data?.length || 0) > limit ||
+      (foundRes.data?.length || 0) > limit ||
+      allData.length > limit;
+
     const reports = isTruncated ? allData.slice(0, limit) : allData;
 
     return { reports, isTruncated };
@@ -1114,6 +1177,13 @@ export async function fetchLocationReports(
     const matches = vNorm === cleanLoc || fNorm === cleanLoc;
     const activeStatus = r.status === 'community_submitted' || r.status === 'confirmed' || r.status === 'approved';
     return matches && activeStatus;
+  });
+
+  // Sort deterministically: created_at DESC with id ASC tie-breaker
+  filtered.sort((a, b) => {
+    const timeDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    return a.id.localeCompare(b.id);
   });
 
   const isTruncated = filtered.length > limit;

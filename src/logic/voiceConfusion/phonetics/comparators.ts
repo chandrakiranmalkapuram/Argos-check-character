@@ -5,11 +5,16 @@ import type { SpokenToken } from '../tokenizer.ts';
  * Token gap cost (insertion/deletion penalty) for phonetic comparators.
  *
  * Decision D12: Fixed at 0.90.
- * At this setting, gapped alignment equals fixed-position for equal-length codes
- * (crossover is about 0.84 for 08MN/20AN). Gapped alignment matters only for unequal
- * token counts (e.g. 3-token Cash Office vs 4-token standard codes). Lowering the gap cost
- * does not surface the shift seeds (such as 08MN/20AN or 81ZE/50ER) because they have 3-4
- * differing tokens and are capped out of phonetic tiers.
+ * At this setting, gapped alignment equals fixed-position for all tested pairs, but
+ * is NOT mathematically identical for all equal-length codes: gapped alignment can
+ * be cheaper in rare cases where two substitutions cost more than two gap penalties.
+ * For example, aisles 13 vs 39 with identical letters (13AA vs 39AA):
+ * - Fixed alignment: ONE/THREE (0.97) + THREE/NINE (1.00) = 1.97
+ * - Gapped alignment: 2 × 0.90 (gap ONE + gap NINE with aligned THREE/THREE) = 1.80
+ * Gapped alignment primarily matters for unequal token counts (e.g. 3-token Cash Office
+ * vs 4-token standard codes). Lowering the gap cost does not surface the shift seeds
+ * (such as 08MN/20AN or 81ZE/50ER) because they have 3-4 differing tokens and are
+ * capped out of phonetic tiers.
  */
 export const TOKEN_GAP_COST = 0.9;
 

@@ -24,6 +24,7 @@
 
 import { isPersistenceConfigured, fetchLocationReports } from './service.ts';
 import { normaliseLocationCode } from './normalizer.ts';
+import { LOCATION_FILTER_ALLOWLIST_REGEX } from './validation.ts';
 import { suggestConfusions } from '../logic/voiceConfusion/engine.ts';
 import type { VoiceConfusionReport, SuggestionOptions, SuggestionResult } from '../logic/voiceConfusion/types.ts';
 
@@ -44,8 +45,18 @@ export interface EvidenceSuggestionsResult {
   evidence: EvidenceResult;
 }
 
-// In-memory cache keyed by normalised location
-const evidenceCache = new Map<string, EvidenceResult>();
+/**
+ * Default cache TTL: 5 minutes.
+ */
+export const EVIDENCE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface CachedEvidenceEntry {
+  result: EvidenceResult;
+  timestamp: number;
+}
+
+// In-memory cache keyed by normalised location with timestamp for TTL expiry
+const evidenceCache = new Map<string, CachedEvidenceEntry>();
 
 /**
  * Clears the evidence cache (useful for testing or cache invalidation).
@@ -55,25 +66,37 @@ export function clearEvidenceCache(): void {
 }
 
 /**
- * Retrieves cached evidence for a given location code if present.
+ * Retrieves cached evidence for a given location code if present and not expired.
  */
-export function getCachedEvidence(location: string): EvidenceResult | undefined {
+export function getCachedEvidence(location: string, ttlMs: number = EVIDENCE_CACHE_TTL_MS): EvidenceResult | undefined {
   const clean = normaliseLocationCode(location);
-  return evidenceCache.get(clean);
+  const entry = evidenceCache.get(clean);
+  if (!entry) return undefined;
+  if (Date.now() - entry.timestamp > ttlMs) {
+    evidenceCache.delete(clean);
+    return undefined;
+  }
+  return entry.result;
 }
 
 /**
  * Manually populates the cache (primarily for unit testing mocked scenarios).
  */
-export function setCachedEvidence(location: string, evidence: EvidenceResult): void {
+export function setCachedEvidence(location: string, evidence: EvidenceResult, timestamp?: number): void {
   const clean = normaliseLocationCode(location);
-  evidenceCache.set(clean, evidence);
+  evidenceCache.set(clean, {
+    result: evidence,
+    timestamp: timestamp ?? Date.now()
+  });
 }
 
 /**
- * Fetches community reports for a location with caching and graceful degradation.
+ * Fetches community reports for a location with caching, TTL expiry, and graceful degradation.
  *
  * Rules:
+ * - Input Hardening: Validates input against strict allow-list (^[A-Z0-9+/-]{2,10}$).
+ *   Invalid/hostile strings immediately return 'unavailable' and never reach the database.
+ * - Cache TTL: Respects TTL (default 5 minutes). Bypasses cache when bypassCache = true.
  * - If Supabase persistence is not configured: returns 'unavailable' with message 'community evidence unavailable'.
  * - If network or query error occurs: returns 'unavailable' with message 'community evidence unavailable'.
  * - If successful: returns 'available' with reports and isTruncated indicator.
@@ -84,6 +107,7 @@ export async function fetchEvidenceForLocation(
     limit?: number;
     bypassCache?: boolean;
     forceConfigured?: boolean; // For testing unconfigured override
+    ttlMs?: number;
   }
 ): Promise<EvidenceResult> {
   const clean = normaliseLocationCode(location);
@@ -95,8 +119,23 @@ export async function fetchEvidenceForLocation(
     };
   }
 
-  if (!options?.bypassCache && evidenceCache.has(clean)) {
-    return evidenceCache.get(clean)!;
+  // Input hardening: validate against strict allow-list before querying
+  if (!LOCATION_FILTER_ALLOWLIST_REGEX.test(clean)) {
+    return {
+      kind: 'unavailable',
+      reason: 'invalid_location_format',
+      userMessage: 'community evidence unavailable'
+    };
+  }
+
+  const ttl = options?.ttlMs ?? EVIDENCE_CACHE_TTL_MS;
+  const now = Date.now();
+
+  if (!options?.bypassCache) {
+    const cachedEntry = evidenceCache.get(clean);
+    if (cachedEntry && now - cachedEntry.timestamp < ttl) {
+      return cachedEntry.result;
+    }
   }
 
   // Check if live persistence is configured (unless test overrides)
@@ -124,7 +163,10 @@ export async function fetchEvidenceForLocation(
       isTruncated
     };
 
-    evidenceCache.set(clean, available);
+    evidenceCache.set(clean, {
+      result: available,
+      timestamp: Date.now()
+    });
     return available;
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
@@ -135,6 +177,23 @@ export async function fetchEvidenceForLocation(
     };
     return unavail;
   }
+}
+
+/**
+ * Manual refresh path for a location's evidence.
+ * Bypasses the cache and updates it with fresh database results.
+ */
+export async function refreshEvidenceForLocation(
+  location: string,
+  options?: {
+    limit?: number;
+    forceConfigured?: boolean;
+  }
+): Promise<EvidenceResult> {
+  return fetchEvidenceForLocation(location, {
+    ...options,
+    bypassCache: true
+  });
 }
 
 /**
@@ -216,6 +275,32 @@ export class CommittedEvidenceCoordinator {
         this.debounceTimer = null;
       }
     };
+  }
+
+  /**
+   * Immediately commits a location input, cancelling any pending debounced timers,
+   * and dispatches a fetch. If another commit occurs while this request is in-flight,
+   * the response from this request is strictly ignored.
+   */
+  public async commitInput(
+    location: string,
+    onComplete: (result: EvidenceSuggestionsResult) => void,
+    options?: SuggestionOptions & { limit?: number; bypassCache?: boolean; forceConfigured?: boolean }
+  ): Promise<void> {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+
+    const requestId = ++this.currentRequestId;
+    try {
+      const result = await getEvidenceSuggestions(location, options);
+      if (requestId === this.currentRequestId) {
+        onComplete(result);
+      }
+    } catch {
+      // Ignore errors for stale requests
+    }
   }
 
   /**

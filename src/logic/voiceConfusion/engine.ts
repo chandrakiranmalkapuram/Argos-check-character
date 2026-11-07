@@ -118,9 +118,10 @@ function buildPlainEnglishExplanation(
  *   status 'approved'/'confirmed' or provenance 'moderator_confirmed' (never seed_observation), may raise a tier.
  *   Reports with reason 'similar_check_character' or 'other' appear in reportedPairs with label
  *   "Reported (layout / check-character), does not affect ranking". Submitter reasons are inherently
- *   unreliable; restricting Tier 1 elevation to acoustic reasons is a deliberate operational fail-safe.
- * - Decision D12: TOKEN_GAP_COST fixed at 0.90. At this setting, gapped alignment equals fixed-position for
- *   equal-length codes (crossover ~0.84 for 08MN/20AN), mattering only for unequal token counts.
+ * - Decision D12: TOKEN_GAP_COST fixed at 0.90. At this setting, gapped alignment equals fixed-position
+ *   for all tested pairs, but is NOT mathematically identical for all equal-length codes (e.g. aisles
+ *   13 vs 39 with identical letters: fixed 1.97 vs gapped 1.80). Gapped alignment primarily matters
+ *   for unequal token counts (e.g. 3-token Cash Office vs 4-token standard codes).
  *   Lowering gap cost does not surface the shift seeds because they have 3-4 differing tokens.
  *
  * Model Limitations & Architecture Notes:
