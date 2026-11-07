@@ -1099,7 +1099,7 @@ export const ENGINE_REPORT_SELECT_COLUMNS = [
  */
 export async function fetchLocationReports(
   normalizedLocation: string,
-  limit: number = 100
+  limit: number = 50
 ): Promise<LocationReportsResult> {
   const cleanLoc = normaliseLocationCode(normalizedLocation);
   if (!cleanLoc) {
@@ -1116,6 +1116,7 @@ export async function fetchLocationReports(
     // Parameter-safe queries using two .eq() filters merged client-side.
     // Each query targets a single-column index (idx_voice_confusion_voiced_norm
     // or idx_voice_confusion_found_norm) with parameterized equality.
+    // Fetches limit + 1 to detect per-query truncation.
     const [voicedRes, foundRes] = await Promise.all([
       supabase
         .from('voice_confusion_reports')
@@ -1144,12 +1145,24 @@ export async function fetchLocationReports(
       throw new Error(foundRes.error.message || 'Database query failed');
     }
 
+    const voicedRows = ((voicedRes.data as unknown as VoiceConfusionReport[]) || []);
+    const foundRows = ((foundRes.data as unknown as VoiceConfusionReport[]) || []);
+
+    // Detect truncation per query (limit + 1 rows fetched), never from the merged length
+    const voicedTruncated = voicedRows.length > limit;
+    const foundTruncated = foundRows.length > limit;
+    const isTruncated = voicedTruncated || foundTruncated;
+
+    // Take at most `limit` rows from each query if truncated
+    const voicedSlice = voicedTruncated ? voicedRows.slice(0, limit) : voicedRows;
+    const foundSlice = foundTruncated ? foundRows.slice(0, limit) : foundRows;
+
     // Merge and deduplicate client-side by id
     const reportMap = new Map<string, VoiceConfusionReport>();
-    for (const r of ((voicedRes.data as unknown as VoiceConfusionReport[]) || [])) {
+    for (const r of voicedSlice) {
       reportMap.set(r.id, r);
     }
-    for (const r of ((foundRes.data as unknown as VoiceConfusionReport[]) || [])) {
+    for (const r of foundSlice) {
       reportMap.set(r.id, r);
     }
 
@@ -1160,36 +1173,44 @@ export async function fetchLocationReports(
       return a.id.localeCompare(b.id);
     });
 
-    const isTruncated =
-      (voicedRes.data?.length || 0) > limit ||
-      (foundRes.data?.length || 0) > limit ||
-      allData.length > limit;
-
-    const reports = isTruncated ? allData.slice(0, limit) : allData;
-
-    return { reports, isTruncated };
+    return { reports: allData, isTruncated };
   }
 
   // Local fallback: includes non-flagged, non-rejected, non-pending reports
-  const filtered = localReportsStore.filter(r => {
+  const voicedMatches = localReportsStore.filter(r => {
     const vNorm = normaliseLocationCode(r.voiced_location_norm || r.voiced_location || r.heard_location || '');
-    const fNorm = normaliseLocationCode(r.found_location_norm || r.found_location || r.actual_location || '');
-    const matches = vNorm === cleanLoc || fNorm === cleanLoc;
     const activeStatus = r.status === 'community_submitted' || r.status === 'confirmed' || r.status === 'approved';
-    return matches && activeStatus;
+    return vNorm === cleanLoc && activeStatus;
+  });
+  const foundMatches = localReportsStore.filter(r => {
+    const fNorm = normaliseLocationCode(r.found_location_norm || r.found_location || r.actual_location || '');
+    const activeStatus = r.status === 'community_submitted' || r.status === 'confirmed' || r.status === 'approved';
+    return fNorm === cleanLoc && activeStatus;
   });
 
+  const voicedTruncated = voicedMatches.length > limit;
+  const foundTruncated = foundMatches.length > limit;
+  const isTruncated = voicedTruncated || foundTruncated;
+
+  const voicedSlice = voicedTruncated ? voicedMatches.slice(0, limit) : voicedMatches;
+  const foundSlice = foundTruncated ? foundMatches.slice(0, limit) : foundMatches;
+
+  const reportMap = new Map<string, VoiceConfusionReport>();
+  for (const r of voicedSlice) {
+    reportMap.set(r.id, r);
+  }
+  for (const r of foundSlice) {
+    reportMap.set(r.id, r);
+  }
+
   // Sort deterministically: created_at DESC with id ASC tie-breaker
-  filtered.sort((a, b) => {
+  const allData = Array.from(reportMap.values()).sort((a, b) => {
     const timeDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     if (timeDiff !== 0) return timeDiff;
     return a.id.localeCompare(b.id);
   });
 
-  const isTruncated = filtered.length > limit;
-  const reports = isTruncated ? filtered.slice(0, limit) : filtered;
-
-  return { reports, isTruncated };
+  return { reports: allData, isTruncated };
 }
 
 /**

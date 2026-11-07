@@ -102,28 +102,28 @@ const DOCUMENTED_HEURISTICS: readonly AcousticSubstitution[] = [
     source: '08',
     target: '20',
     type: 'digit_pair',
-    reason: 'Spoken "zero-eight" / "oh-eight" acoustically confused with "twenty" / "two-zero"',
+    reason: 'Spoken "zero-eight" / "oh-eight" acoustically confused with "two zero"',
     points: 260
   },
   {
     source: '20',
     target: '08',
     type: 'digit_pair',
-    reason: 'Spoken "twenty" / "two-zero" acoustically confused with "zero-eight" / "oh-eight"',
+    reason: 'Spoken "two zero" acoustically confused with "zero-eight" / "oh-eight"',
     points: 260
   },
   {
     source: '81',
     target: '50',
     type: 'digit_pair',
-    reason: 'Spoken "eighty-one" acoustically masked as "fifty" in high-frequency warehouse noise',
+    reason: 'Spoken "eight one" acoustically masked as "five zero" in high-frequency warehouse noise',
     points: 260
   },
   {
     source: '50',
     target: '81',
     type: 'digit_pair',
-    reason: 'Spoken "fifty" acoustically masked as "eighty-one" in high-frequency warehouse noise',
+    reason: 'Spoken "five zero" acoustically masked as "eight one" in high-frequency warehouse noise',
     points: 260
   },
 

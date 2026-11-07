@@ -104,7 +104,7 @@ describe('Voice Confusion Suggestion Formatters (Plain English & Evidence Labels
     it('formats digit pair 08/20 acoustic confusion into plain English', () => {
       const cand: CandidateSuggestion = {
         ...baseSuggestion,
-        explanations: ['Documented digit pair heuristic: Spoken "zero-eight" / "oh-eight" acoustically confused with "twenty" / "two-zero".']
+        explanations: ['Documented digit pair heuristic: Spoken "zero-eight" / "oh-eight" acoustically confused with "two zero".']
       };
       expect(getPlainEnglishReason(cand, '08MN')).toBe(
         'Numbers "08" and "20" sound very similar over voice headsets.'

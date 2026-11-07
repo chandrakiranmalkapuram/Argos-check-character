@@ -29,6 +29,8 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
 
   // Arithmetic pool lazy computation & pagination state
   const [isArithmeticOpen, setIsArithmeticOpen] = useState<boolean>(false);
+  const [isPossibleOpen, setIsPossibleOpen] = useState<boolean>(false);
+  const [isDiffCheckOpen, setIsDiffCheckOpen] = useState<boolean>(false);
   const [arithmeticFilter, setArithmeticFilter] = useState<string>('');
   const [arithmeticPage, setArithmeticPage] = useState<number>(1);
   const PAGE_SIZE = 50;
@@ -46,6 +48,8 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
       setArithmeticPage(1);
       setArithmeticFilter('');
       setIsArithmeticOpen(false);
+      setIsPossibleOpen(false);
+      setIsDiffCheckOpen(false);
     }, debounceMs);
 
     return () => clearTimeout(timer);
@@ -275,8 +279,30 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
 
       {/* SECTION (c): Possible matches (Tier 3), collapsed with count */}
       {possibleMatches.length > 0 && (
-        <details className="vc-disclosure vc-disclosure--possible">
-          <summary className="vc-disclosure-summary" aria-label={`Possible matches, ${possibleMatches.length} candidates available`}>
+        <details
+          className="vc-disclosure vc-disclosure--possible"
+          open={isPossibleOpen}
+          onToggle={(e: React.SyntheticEvent<HTMLDetailsElement>) => {
+            setIsPossibleOpen(e.currentTarget.open);
+          }}
+        >
+          <summary
+            className="vc-disclosure-summary"
+            role="button"
+            tabIndex={0}
+            aria-expanded={isPossibleOpen}
+            aria-label={`Possible matches, ${possibleMatches.length} candidates available`}
+            onClick={(e) => {
+              e.preventDefault();
+              setIsPossibleOpen(prev => !prev);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsPossibleOpen(prev => !prev);
+              }
+            }}
+          >
             <span className="vc-disclosure-title">
               Possible matches ({possibleMatches.length})
             </span>
@@ -309,10 +335,19 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
       >
         <summary
           className="vc-disclosure-summary"
+          role="button"
+          tabIndex={0}
+          aria-expanded={isArithmeticOpen}
           aria-label="All same-check codes arithmetic pool"
           onClick={(e) => {
             e.preventDefault();
             setIsArithmeticOpen(prev => !prev);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setIsArithmeticOpen(prev => !prev);
+            }
           }}
         >
           <span className="vc-disclosure-title">
@@ -402,8 +437,30 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
 
       {/* SECTION (e): Reported confusions with a different check character */}
       {differentCheckReports.length > 0 && (
-        <details className="vc-disclosure vc-disclosure--diff-check">
-          <summary className="vc-disclosure-summary" aria-label={`Reported confusions with a different check character (${differentCheckReports.length})`}>
+        <details
+          className="vc-disclosure vc-disclosure--diff-check"
+          open={isDiffCheckOpen}
+          onToggle={(e: React.SyntheticEvent<HTMLDetailsElement>) => {
+            setIsDiffCheckOpen(e.currentTarget.open);
+          }}
+        >
+          <summary
+            className="vc-disclosure-summary"
+            role="button"
+            tabIndex={0}
+            aria-expanded={isDiffCheckOpen}
+            aria-label={`Reported confusions with a different check character (${differentCheckReports.length})`}
+            onClick={(e) => {
+              e.preventDefault();
+              setIsDiffCheckOpen(prev => !prev);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsDiffCheckOpen(prev => !prev);
+              }
+            }}
+          >
             <span className="vc-disclosure-title">
               Reported confusions with a different check character: the headset would normally reject these ({differentCheckReports.length})
             </span>
@@ -551,6 +608,8 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
   searchedSpokenText: _searchedSpokenText,
   onSelectLocation
 }) => {
+  const [isModelDetailsOpen, setIsModelDetailsOpen] = useState(false);
+
   // Evidence badge label
   let evidenceBadgeLabel: string | null = null;
   if (candidate.isReferenceExample) {
@@ -671,8 +730,29 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
       </div>
 
       {/* 4. Optional Model details disclosure (numeric distances kept strictly inside) */}
-      <details className="vc-model-details">
-        <summary className="vc-model-details-summary">
+      <details
+        className="vc-model-details"
+        open={isModelDetailsOpen}
+        onToggle={(e: React.SyntheticEvent<HTMLDetailsElement>) => {
+          setIsModelDetailsOpen(e.currentTarget.open);
+        }}
+      >
+        <summary
+          className="vc-model-details-summary"
+          role="button"
+          tabIndex={0}
+          aria-expanded={isModelDetailsOpen}
+          onClick={(e) => {
+            e.preventDefault();
+            setIsModelDetailsOpen(prev => !prev);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setIsModelDetailsOpen(prev => !prev);
+            }
+          }}
+        >
           Model details (model assessment, not a probability)
         </summary>
         <div className="vc-model-details-content">

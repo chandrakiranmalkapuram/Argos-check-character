@@ -154,7 +154,7 @@ export async function fetchEvidenceForLocation(
   }
 
   try {
-    const limit = options?.limit ?? 100;
+    const limit = options?.limit ?? 50;
     const { reports, isTruncated } = await fetchLocationReports(clean, limit);
 
     const available: EvidenceResult = {

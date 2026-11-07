@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { suggestConfusions } from '../voiceConfusion/engine.ts';
+import { suggestConfusions, classifyAlignmentTier } from '../voiceConfusion/engine.ts';
 import { calculateStoreCheckChar } from '../storeCalculator.ts';
 import { enumerateGrammarLocations, parseLocationCode } from '../voiceConfusion/grammar.ts';
-import { compareGappedAlignment, compareFixedPosition, TOKEN_GAP_COST } from '../voiceConfusion/phonetics/comparators.ts';
+import { compareGappedAlignment, compareFixedPosition, TOKEN_GAP_COST, type TokenAlignmentPair } from '../voiceConfusion/phonetics/comparators.ts';
 import { tokenizeStoreLocation } from '../voiceConfusion/tokenizer.ts';
 import type { VoiceConfusionReport } from '../voiceConfusion/types.ts';
 
@@ -164,6 +164,62 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
         expect(cand?.hasCommunityReport).toBe(true);
         expect(cand?.communityReportStatus).toBe(st);
       }
+    });
+
+    it('verifies status "archived"; provenance "moderator_confirmed" with an acoustic reason elevates, but with "other" or "similar_check_character" does not elevate', () => {
+      // 1. Status 'archived' with provenance 'moderator_confirmed' and acoustic reason ('similar_sounding') -> ELEVATES to Tier 1
+      const archivedModAcoustic: VoiceConfusionReport = {
+        id: 'rep-archived-mod-acoustic',
+        user_id: null,
+        voiced_location: '10AK',
+        found_location: '10BZ',
+        reason: 'similar_sounding',
+        status: 'archived',
+        provenance: 'moderator_confirmed',
+        confirmations_count: 3,
+        flag_count: 0,
+        created_at: '2026-11-01T00:00:00.000Z',
+        updated_at: '2026-11-01T00:00:00.000Z'
+      };
+      const resAcoustic = suggestConfusions('10AK', { communityReports: [archivedModAcoustic] });
+      const candAcoustic = resAcoustic.candidates.find(c => c.location === '10BZ');
+      expect(candAcoustic?.tier).toBe('tier1_reported');
+
+      // 2. Status 'archived' with provenance 'moderator_confirmed' and reason 'other' -> DOES NOT ELEVATE (stays Tier 3)
+      const archivedModOther: VoiceConfusionReport = {
+        id: 'rep-archived-mod-other',
+        user_id: null,
+        voiced_location: '10AK',
+        found_location: '10BZ',
+        reason: 'other',
+        status: 'archived',
+        provenance: 'moderator_confirmed',
+        confirmations_count: 3,
+        flag_count: 0,
+        created_at: '2026-11-01T00:00:00.000Z',
+        updated_at: '2026-11-01T00:00:00.000Z'
+      };
+      const resOther = suggestConfusions('10AK', { communityReports: [archivedModOther] });
+      const candOther = resOther.candidates.find(c => c.location === '10BZ');
+      expect(candOther?.tier).toBe('tier3_possible');
+
+      // 3. Status 'archived' with provenance 'moderator_confirmed' and reason 'similar_check_character' -> DOES NOT ELEVATE (stays Tier 3)
+      const archivedModCheckChar: VoiceConfusionReport = {
+        id: 'rep-archived-mod-checkchar',
+        user_id: null,
+        voiced_location: '10AK',
+        found_location: '10BZ',
+        reason: 'similar_check_character',
+        status: 'archived',
+        provenance: 'moderator_confirmed',
+        confirmations_count: 3,
+        flag_count: 0,
+        created_at: '2026-11-01T00:00:00.000Z',
+        updated_at: '2026-11-01T00:00:00.000Z'
+      };
+      const resCheckChar = suggestConfusions('10AK', { communityReports: [archivedModCheckChar] });
+      const candCheckChar = resCheckChar.candidates.find(c => c.location === '10BZ');
+      expect(candCheckChar?.tier).toBe('tier3_possible');
     });
 
     it('verifies report direction is strictly preserved (voiced -> found)', () => {
@@ -346,62 +402,82 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
       expect(gappedComp.totalDistance).toBeLessThan(fixedComp.totalDistance);
     });
 
-    it('engine-level: Cash Office or Collection Point input against standard candidate (and reverse) asserts collapsed tier and that differing-token cap counts gap tokens', () => {
-      // 1. Cash Office Input CA01 (3 tokens: CASH OFFICE, ZERO, ONE; checkChar: ZULU)
-      const resCA = suggestConfusions('CA01', { includeArithmeticCollisions: true });
-      expect(resCA.isValid).toBe(true);
-      expect(resCA.checkChar).toBe('ZULU');
+    it('classification-level synthetic alignments with gap tokens: 1 gap -> Tier 3; 2 gaps -> collapsed; 1 gap + 1 near -> Tier 3 (cap 2); 1 gap + 2 others -> collapsed', () => {
+      // Synthetic Alignment 1: exactly one gap token and nothing else (3 identical, 1 gap)
+      // Expected totals:
+      // identicalTokens = 3, nearTokens = 0, farTokens = 1 (the gap token at distance 0.90)
+      // differingTokens = 1, singleFarDist = 0.90, totalDistance = 0.90
+      // Classification: Tier 3 (tier3_possible)
+      const syn1: TokenAlignmentPair[] = [
+        { tokenA: 'ALPHA', tokenB: 'ALPHA', distance: 0 },
+        { tokenA: 'BRAVO', tokenB: 'BRAVO', distance: 0 },
+        { tokenA: 'CHARLIE', tokenB: 'CHARLIE', distance: 0 },
+        { tokenA: 'DELTA', tokenB: null, distance: TOKEN_GAP_COST } // 0.90
+      ];
+      const res1 = classifyAlignmentTier(syn1);
+      expect(res1.differingTokens).toBe(1);
+      expect(res1.farTokens).toBe(1);
+      expect(res1.nearTokens).toBe(0);
+      expect(res1.singleFarDist).toBe(0.90);
+      expect(res1.totalDistance).toBeCloseTo(0.90, 2);
+      expect(res1.tier).toBe('tier3_possible');
 
-      // Candidate 70WW is standard format (4 tokens: SEVEN, ZERO, WHISKEY, WHISKEY; checkChar: ZULU)
-      const cand70WW = resCA.candidates.find(c => c.location === '70WW');
-      expect(cand70WW).toBeDefined();
+      // Synthetic Alignment 2: two gap tokens (2 identical, 2 gaps)
+      // Expected totals:
+      // identicalTokens = 2, nearTokens = 0, farTokens = 2 (each gap token at distance 0.90)
+      // differingTokens = 2, singleFarDist = 0.90, totalDistance = 1.80
+      // Classification: Collapsed to arithmetic_collision (exceeds Tier 3 limit of exactly 1 far token)
+      const syn2: TokenAlignmentPair[] = [
+        { tokenA: 'ALPHA', tokenB: 'ALPHA', distance: 0 },
+        { tokenA: 'BRAVO', tokenB: 'BRAVO', distance: 0 },
+        { tokenA: 'CHARLIE', tokenB: null, distance: TOKEN_GAP_COST }, // 0.90
+        { tokenA: 'DELTA', tokenB: null, distance: TOKEN_GAP_COST }   // 0.90
+      ];
+      const res2 = classifyAlignmentTier(syn2);
+      expect(res2.differingTokens).toBe(2);
+      expect(res2.farTokens).toBe(2);
+      expect(res2.nearTokens).toBe(0);
+      expect(res2.totalDistance).toBeCloseTo(1.80, 2);
+      expect(res2.tier).toBe('arithmetic_collision');
 
-      // Gapped alignment produces gap token with distance TOKEN_GAP_COST (0.90)
-      const gapSlot = cand70WW!.alignment.find(s => s.tokenA === null || s.tokenB === null);
-      expect(gapSlot).toBeDefined();
-      expect(gapSlot?.distance).toBe(TOKEN_GAP_COST);
-      expect(gapSlot?.distance).toBe(0.9);
+      // Synthetic Alignment 3: one gap + one near token (2 identical, 1 near <= 0.55, 1 gap)
+      // Expected totals:
+      // identicalTokens = 2, nearTokens = 1 (distance 0.40), farTokens = 1 (gap at 0.90)
+      // differingTokens = 2 (satisfies MAX_DIFFERING_TOKENS_TIER3 = 2)
+      // totalDistance = 0.40 + 0.90 = 1.30
+      // Classification: Tier 3 (tier3_possible) under cap 2
+      const syn3: TokenAlignmentPair[] = [
+        { tokenA: 'ALPHA', tokenB: 'ALPHA', distance: 0 },
+        { tokenA: 'BRAVO', tokenB: 'BRAVO', distance: 0 },
+        { tokenA: 'DELTA', tokenB: 'TANGO', distance: 0.40 },         // near token (<= 0.55)
+        { tokenA: 'CHARLIE', tokenB: null, distance: TOKEN_GAP_COST } // 0.90
+      ];
+      const res3 = classifyAlignmentTier(syn3);
+      expect(res3.differingTokens).toBe(2);
+      expect(res3.farTokens).toBe(1);
+      expect(res3.nearTokens).toBe(1);
+      expect(res3.singleFarDist).toBe(0.90);
+      expect(res3.totalDistance).toBeCloseTo(1.30, 2);
+      expect(res3.tier).toBe('tier3_possible');
 
-      // Gap token exceeds near threshold (> 0.55), counting as a far token towards differing-token cap.
-      // Total differing tokens = 3 (CASH OFFICE/SEVEN, null/WHISKEY gap, ONE/WHISKEY), which exceeds
-      // MAX_DIFFERING_TOKENS_TIER2 (2) and MAX_DIFFERING_TOKENS_TIER3 (2).
-      // Thus, cand70WW is excluded from Tier 1, 2, and 3, and categorized into arithmetic_collision.
-      expect(cand70WW!.tier).toBe('arithmetic_collision');
-
-      // Default query (without includeArithmeticCollisions) has 0 candidates for CA01
-      const defaultResCA = suggestConfusions('CA01');
-      expect(defaultResCA.candidates).toHaveLength(0);
-
-      // 2. REVERSE DIRECTION: Standard format input 70WW against Cash Office candidate CA01
-      const resReverse = suggestConfusions('70WW', { includeArithmeticCollisions: true });
-      expect(resReverse.isValid).toBe(true);
-      expect(resReverse.checkChar).toBe('ZULU');
-
-      const candCA01 = resReverse.candidates.find(c => c.location === 'CA01');
-      expect(candCA01).toBeDefined();
-
-      // Reverse alignment also contains gap token (0.90) counting towards differing-token cap
-      const reverseGapSlot = candCA01!.alignment.find(s => s.tokenA === null || s.tokenB === null);
-      expect(reverseGapSlot).toBeDefined();
-      expect(reverseGapSlot?.distance).toBe(TOKEN_GAP_COST);
-      expect(reverseGapSlot?.tokenA).toBe('WHISKEY');
-      expect(reverseGapSlot?.tokenB).toBeNull();
-      expect(candCA01!.tier).toBe('arithmetic_collision');
-
-      // 3. Collection Point Input CP01 (3 tokens: COLLECTION POINT, ZERO, ONE; checkChar: ALPHA)
-      const resCP = suggestConfusions('CP01', { includeArithmeticCollisions: true });
-      expect(resCP.isValid).toBe(true);
-      expect(resCP.checkChar).toBe('ALPHA');
-
-      // All standard candidates with checkChar ALPHA have gap tokens and are collapsed into arithmetic_collision
-      const standardCands = resCP.candidates.filter(c => c.pattern === 'standard');
-      expect(standardCands.length).toBeGreaterThan(0);
-      for (const cand of standardCands) {
-        expect(cand.tier).toBe('arithmetic_collision');
-        const hasGap = cand.alignment.some(s => s.tokenA === null || s.tokenB === null);
-        expect(hasGap).toBe(true);
-      }
-      expect(suggestConfusions('CP01').candidates).toHaveLength(0);
+      // Synthetic Alignment 4: one gap + two others (1 identical, 2 near, 1 gap)
+      // Expected totals:
+      // identicalTokens = 1, nearTokens = 2 (distances 0.40 and 0.40), farTokens = 1 (gap at 0.90)
+      // differingTokens = 3 (exceeds MAX_DIFFERING_TOKENS_TIER3 = 2 cap)
+      // totalDistance = 0.40 + 0.40 + 0.90 = 1.70
+      // Classification: Collapsed to arithmetic_collision (differing tokens 3 > cap 2)
+      const syn4: TokenAlignmentPair[] = [
+        { tokenA: 'ALPHA', tokenB: 'ALPHA', distance: 0 },
+        { tokenA: 'DELTA', tokenB: 'TANGO', distance: 0.40 },         // near token
+        { tokenA: 'ECHO', tokenB: 'INDIA', distance: 0.40 },          // near token
+        { tokenA: 'CHARLIE', tokenB: null, distance: TOKEN_GAP_COST } // 0.90
+      ];
+      const res4 = classifyAlignmentTier(syn4);
+      expect(res4.differingTokens).toBe(3);
+      expect(res4.farTokens).toBe(1);
+      expect(res4.nearTokens).toBe(2);
+      expect(res4.totalDistance).toBeCloseTo(1.70, 2);
+      expect(res4.tier).toBe('arithmetic_collision');
     });
   });
 

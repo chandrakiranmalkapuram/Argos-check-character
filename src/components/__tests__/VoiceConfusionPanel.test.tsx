@@ -101,6 +101,32 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
         expect(screen.getByText('results may be incomplete')).toBeTruthy();
       });
     });
+
+    it('shows loading indicator while evidence fetch is in-flight, with phonetic sound-alikes visible immediately', async () => {
+      let resolvePromise!: (val: adapterModule.EvidenceResult) => void;
+      const fetchPromise = new Promise<adapterModule.EvidenceResult>(resolve => {
+        resolvePromise = resolve;
+      });
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockReturnValue(fetchPromise);
+
+      render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
+
+      // NATO phonetic results are immediately visible while fetch is in-flight
+      await waitFor(() => {
+        expect(screen.getByText('10DD')).toBeTruthy();
+      });
+      expect(screen.getByText(/Acoustic sound-alikes sharing check character/i)).toBeTruthy();
+
+      // Loading badge is visible
+      expect(screen.getByText(/Loading community evidence/i)).toBeTruthy();
+
+      // Resolve the evidence fetch
+      resolvePromise({ kind: 'available', reports: [], isTruncated: false });
+
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading community evidence/i)).toBeNull();
+      });
+    });
   });
 
   describe('3. Invariant I2 Same-Check Gate: 10KA and 01AK Absence End-to-End', () => {
@@ -211,6 +237,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
 
       // No percentages or arbitrary scores in rendered text by default
       const panel = screen.getByRole('region', { name: /Voice Confusion Risk Analysis/i });
+      expect(panel.textContent).not.toContain('%');
       expect(panel.textContent).not.toMatch(/\d+%/);
       expect(panel.textContent).not.toMatch(/score:\s*\d+/i);
     });
@@ -304,6 +331,34 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       expect(screen.getByText('11BZ')).toBeTruthy();
       expect(screen.getAllByText(/Check character: UNIFORM \(same check character\)/).length).toBeGreaterThan(0);
       expect(screen.getByText('Arithmetic pool')).toBeTruthy();
+    });
+  });
+
+  describe('8. Disclosures Keyboard Operability and aria-expanded State', () => {
+    it('disclosures are keyboard-operable with Space and Enter and reflect aria-expanded state', async () => {
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [],
+        isTruncated: false
+      });
+
+      render(<VoiceConfusionPanel currentLocation="21EZ" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Close sound-alikes')).toBeTruthy();
+      });
+
+      const poolSummary = screen.getByRole('button', { name: /All same-check codes/i });
+      expect(poolSummary.getAttribute('aria-expanded')).toBe('false');
+
+      // Operate with Enter key to expand
+      fireEvent.keyDown(poolSummary, { key: 'Enter', code: 'Enter' });
+      expect(poolSummary.getAttribute('aria-expanded')).toBe('true');
+      expect(screen.getByPlaceholderText(/Filter same-check codes/i)).toBeTruthy();
+
+      // Operate with Space key to collapse
+      fireEvent.keyDown(poolSummary, { key: ' ', code: 'Space' });
+      expect(poolSummary.getAttribute('aria-expanded')).toBe('false');
     });
   });
 });

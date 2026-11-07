@@ -133,6 +133,90 @@ function buildPlainEnglishExplanation(
  * - Tier 2 (model-similar) and Tier 3 (possible) caps are set to 2 differing tokens as a convention
  *   under the hypothesis that fewer independent token errors are more plausible.
  */
+export interface AlignmentClassificationResult {
+  tier: CandidateTier;
+  identicalTokens: number;
+  nearTokens: number;
+  farTokens: number;
+  differingTokens: number;
+  singleFarDist: number;
+  totalDistance: number;
+}
+
+/**
+ * Classifies the suggestion tier for an aligned token sequence under the
+ * tier caps and thresholds:
+ * - Tier 1: qualifiesForTier1 is true
+ * - Tier 2 (model-similar): 0 far tokens, total differing tokens <= maxDiffTier2 (cap 2)
+ * - Tier 3 (possible): exactly 1 far token, total differing tokens <= maxDiffTier3 (cap 2)
+ * - Arithmetic Collision (collapsed): more than 1 far token, or differing tokens > cap.
+ */
+export function classifyAlignmentTier(
+  alignment: TokenAlignmentPair[],
+  options?: {
+    maxDiffTier2?: number;
+    maxDiffTier3?: number;
+    maxFarDistTier3?: number;
+    qualifiesForTier1?: boolean;
+  }
+): AlignmentClassificationResult {
+  const maxDiffTier2 = options?.maxDiffTier2 ?? MAX_DIFFERING_TOKENS_TIER2;
+  const maxDiffTier3 = options?.maxDiffTier3 ?? MAX_DIFFERING_TOKENS_TIER3;
+  const maxFarDistTier3 = options?.maxFarDistTier3;
+
+  let farTokens = 0;
+  let nearTokens = 0;
+  let identicalTokens = 0;
+  let singleFarDist = 0;
+  let totalDistance = 0;
+
+  for (const pair of alignment) {
+    totalDistance += pair.distance;
+    if (pair.distance === 0) {
+      identicalTokens++;
+    } else if (pair.distance <= MODEL_SIMILAR_TOKEN_THRESHOLD) {
+      nearTokens++;
+    } else {
+      farTokens++;
+      singleFarDist = pair.distance;
+    }
+  }
+
+  const differingTokens = nearTokens + farTokens;
+
+  // Tier 2: Model-Similar: 0 far tokens (all differing tokens are model-similar <= 0.55)
+  // and total differing tokens <= maxDiffTier2
+  const isTier2 = farTokens === 0 && differingTokens <= maxDiffTier2;
+
+  // Tier 3: Possible: exactly 1 far token, total differing tokens <= maxDiffTier3,
+  // and far token distance <= maxFarDistTier3 (if specified)
+  const isTier3 =
+    farTokens === 1 &&
+    differingTokens <= maxDiffTier3 &&
+    (maxFarDistTier3 === undefined || singleFarDist <= maxFarDistTier3);
+
+  let tier: CandidateTier;
+  if (options?.qualifiesForTier1) {
+    tier = 'tier1_reported';
+  } else if (isTier2) {
+    tier = 'tier2_model_similar';
+  } else if (isTier3) {
+    tier = 'tier3_possible';
+  } else {
+    tier = 'arithmetic_collision';
+  }
+
+  return {
+    tier,
+    identicalTokens,
+    nearTokens,
+    farTokens,
+    differingTokens,
+    singleFarDist,
+    totalDistance
+  };
+}
+
 export function suggestConfusions(
   location: string,
   options?: SuggestionOptions
@@ -311,24 +395,6 @@ export function suggestConfusions(
     const peerTokens = tokenizeStoreLocation(peerCode);
     const comp = compareGappedAlignment(inputTokens, peerTokens);
 
-    let farTokens = 0;
-    let nearTokens = 0;
-    let identicalTokens = 0;
-    let singleFarDist = 0;
-
-    for (const pair of comp.alignment) {
-      if (pair.distance === 0) {
-        identicalTokens++;
-      } else if (pair.distance <= MODEL_SIMILAR_TOKEN_THRESHOLD) {
-        nearTokens++;
-      } else {
-        farTokens++;
-        singleFarDist = pair.distance;
-      }
-    }
-
-    const differingTokens = nearTokens + farTokens;
-
     const reportedInfo = reportedCounterparts.get(peerCode);
     const isReported = reportedInfo !== undefined;
 
@@ -354,27 +420,14 @@ export function suggestConfusions(
     const isReferenceExample =
       isReported && reportedInfo.report.provenance === 'seed_observation';
 
-    // Tier 2: Model-Similar: 0 far tokens (all differing tokens are model-similar <= 0.55)
-    // and total differing tokens <= maxDiffTier2
-    const isTier2 = farTokens === 0 && differingTokens <= maxDiffTier2;
+    const classification = classifyAlignmentTier(comp.alignment, {
+      maxDiffTier2,
+      maxDiffTier3,
+      maxFarDistTier3,
+      qualifiesForTier1
+    });
 
-    // Tier 3: Possible: exactly 1 far token, total differing tokens <= maxDiffTier3,
-    // and far token distance <= maxFarDistTier3 (if specified)
-    const isTier3 =
-      farTokens === 1 &&
-      differingTokens <= maxDiffTier3 &&
-      (maxFarDistTier3 === undefined || singleFarDist <= maxFarDistTier3);
-
-    let tier: CandidateTier;
-    if (qualifiesForTier1) {
-      tier = 'tier1_reported';
-    } else if (isTier2) {
-      tier = 'tier2_model_similar';
-    } else if (isTier3) {
-      tier = 'tier3_possible';
-    } else {
-      tier = 'arithmetic_collision';
-    }
+    const tier = classification.tier;
 
     const explanation = buildPlainEnglishExplanation(
       comp.alignment,

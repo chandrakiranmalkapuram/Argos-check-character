@@ -1,4 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const mockSupabaseFrom = vi.fn();
+
+vi.mock('../supabaseClient.ts', () => ({
+  isSupabaseConfigured: true,
+  supabase: {
+    from: (...args: unknown[]) => mockSupabaseFrom(...args)
+  }
+}));
+
 import {
   fetchEvidenceForLocation,
   getEvidenceSuggestions,
@@ -120,6 +130,62 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
         expect(result.evidence.isTruncated).toBe(true);
       }
     });
+
+    it('detects truncation per query when one query is truncated (limit + 1 rows) and the other is not', async () => {
+      // Mock Supabase returning 51 rows for voiced query (truncated for limit 50) and 10 rows for found query
+      const voicedRows = Array.from({ length: 51 }, (_, i) =>
+        baseReport({ id: `voiced-${i}`, voiced_location: '10AK', found_location: `10D${i}` })
+      );
+      const foundRows = Array.from({ length: 10 }, (_, i) =>
+        baseReport({ id: `found-${i}`, voiced_location: `10E${i}`, found_location: '10AK' })
+      );
+
+      let callCount = 0;
+      mockSupabaseFrom.mockImplementation(() => {
+        callCount++;
+        const currentData = callCount % 2 === 1 ? voicedRows : foundRows;
+        const builder: Record<string, unknown> = {};
+        builder.select = vi.fn().mockReturnValue(builder);
+        builder.in = vi.fn().mockReturnValue(builder);
+        builder.eq = vi.fn().mockReturnValue(builder);
+        builder.order = vi.fn().mockReturnValue(builder);
+        builder.limit = vi.fn().mockResolvedValue({ data: currentData, error: null });
+        return builder;
+      });
+
+      const res = await serviceModule.fetchLocationReports('10AK', 50);
+      expect(res.isTruncated).toBe(true);
+      // Slices voiced to 50, keeps all 10 found -> 60 total reports
+      expect(res.reports.length).toBe(60);
+    });
+
+    it('does NOT flag incomplete when both queries are under the limit with a merged total above 50', async () => {
+      // Both queries are under limit 50 (30 rows each, 60 distinct rows merged > 50)
+      const voicedRows = Array.from({ length: 30 }, (_, i) =>
+        baseReport({ id: `voiced-${i}`, voiced_location: '10AK', found_location: `10D${i}` })
+      );
+      const foundRows = Array.from({ length: 30 }, (_, i) =>
+        baseReport({ id: `found-${i}`, voiced_location: `10E${i}`, found_location: '10AK' })
+      );
+
+      let callCount = 0;
+      mockSupabaseFrom.mockImplementation(() => {
+        callCount++;
+        const currentData = callCount % 2 === 1 ? voicedRows : foundRows;
+        const builder: Record<string, unknown> = {};
+        builder.select = vi.fn().mockReturnValue(builder);
+        builder.in = vi.fn().mockReturnValue(builder);
+        builder.eq = vi.fn().mockReturnValue(builder);
+        builder.order = vi.fn().mockReturnValue(builder);
+        builder.limit = vi.fn().mockResolvedValue({ data: currentData, error: null });
+        return builder;
+      });
+
+      const res = await serviceModule.fetchLocationReports('10AK', 50);
+      // Must NOT be flagged incomplete because neither query exceeded the limit!
+      expect(res.isTruncated).toBe(false);
+      expect(res.reports.length).toBe(60);
+    });
   });
 
   describe('3. Every Report Status Assertion', () => {
@@ -129,7 +195,8 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       { status: 'community_submitted', elevatesTier: false },
       { status: 'pending', elevatesTier: false },
       { status: 'flagged', elevatesTier: false },
-      { status: 'rejected', elevatesTier: false }
+      { status: 'rejected', elevatesTier: false },
+      { status: 'archived', elevatesTier: false }
     ];
 
     for (const { status, elevatesTier } of statuses) {
@@ -423,9 +490,11 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
     ];
 
     for (const hostile of hostileInputs) {
-      it(`rejects hostile input "${hostile.length > 20 ? hostile.slice(0, 15) + '... (5000 chars)' : hostile}" without querying database`, async () => {
+      const displayName = hostile.length > 50 ? '[5000-character string]' : hostile;
+      it(`rejects hostile input "${displayName}" without querying database`, async () => {
         vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
         const fetchSpy = vi.spyOn(serviceModule, 'fetchLocationReports');
+        mockSupabaseFrom.mockClear();
 
         // fetchEvidenceForLocation must return 'unavailable' with reason 'invalid_location_format'
         const result = await fetchEvidenceForLocation(hostile, { forceConfigured: true });
@@ -442,6 +511,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
         await expect(serviceModule.fetchLocationReports(hostile)).rejects.toThrow(
           /Invalid location code format for reports query/
         );
+
+        // Assert that the Supabase mock is called zero times
+        expect(mockSupabaseFrom).toHaveBeenCalledTimes(0);
       });
     }
   });
