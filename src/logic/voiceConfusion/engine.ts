@@ -114,6 +114,14 @@ function buildPlainEnglishExplanation(
  * - Invariant I7: Different-check community reports isolated into a separate section.
  * - Decision D3: seed_observation provenance never elevates a tier. Tier 1 requires approved/confirmed status.
  * - Decision D9: Reported pairs section includes all same-check pairs with labels and badges.
+ * - Decision D11: Option A. Only reasons 'similar_sounding' and 'headset_misrecognition', combined with
+ *   status 'approved'/'confirmed' or provenance 'moderator_confirmed' (never seed_observation), may raise a tier.
+ *   Reports with reason 'similar_check_character' or 'other' appear in reportedPairs with label
+ *   "Reported (layout / check-character), does not affect ranking". Submitter reasons are inherently
+ *   unreliable; restricting Tier 1 elevation to acoustic reasons is a deliberate operational fail-safe.
+ * - Decision D12: TOKEN_GAP_COST fixed at 0.90. At this setting, gapped alignment equals fixed-position for
+ *   equal-length codes (crossover ~0.84 for 08MN/20AN), mattering only for unequal token counts.
+ *   Lowering gap cost does not surface the shift seeds because they have 3-4 differing tokens.
  *
  * Model Limitations & Architecture Notes:
  * - 08MN / 20AN (3 far tokens) and 81ZE / 50ER (4 far tokens) never appear in the phonetic tiers
@@ -199,9 +207,11 @@ export function suggestConfusions(
           reportedCounterparts.set(repFound, { count, report: rep });
         }
 
-        let label: 'Reference example' | 'Reported, unverified' | 'Approved' | 'Confirmed';
+        let label: ReportedPairEntry['label'];
         if (rep.provenance === 'seed_observation') {
           label = 'Reference example';
+        } else if (rep.reason === 'similar_check_character' || rep.reason === 'other') {
+          label = 'Reported (layout / check-character), does not affect ranking';
         } else if (rep.status === 'approved' || rep.provenance === 'moderator_confirmed') {
           label = 'Approved';
         } else if (rep.status === 'confirmed') {
@@ -219,6 +229,7 @@ export function suggestConfusions(
           reportCount: count,
           label,
           direction: 'voiced_to_found',
+          reason: rep.reason,
           details: rep.details ?? undefined
         });
       } else if (foundCalc.isValid && foundCalc.checkChar !== targetCheckChar) {
@@ -239,9 +250,11 @@ export function suggestConfusions(
     else if (repFound === normalized && repVoiced && repVoiced !== normalized) {
       const voicedCalc = calculateStoreCheckChar(repVoiced);
       if (voicedCalc.isValid && voicedCalc.checkChar === targetCheckChar) {
-        let label: 'Reference example' | 'Reported, unverified' | 'Approved' | 'Confirmed';
+        let label: ReportedPairEntry['label'];
         if (rep.provenance === 'seed_observation') {
           label = 'Reference example';
+        } else if (rep.reason === 'similar_check_character' || rep.reason === 'other') {
+          label = 'Reported (layout / check-character), does not affect ranking';
         } else if (rep.status === 'approved' || rep.provenance === 'moderator_confirmed') {
           label = 'Approved';
         } else if (rep.status === 'confirmed') {
@@ -259,6 +272,7 @@ export function suggestConfusions(
           reportCount: rep.confirmations_count || 1,
           label,
           direction: 'opposite_direction',
+          reason: rep.reason,
           details: rep.details ?? undefined
         });
         // Reverse direction never adds to reportedCounterparts, so it never raises a tier!
@@ -317,12 +331,21 @@ export function suggestConfusions(
     const reportedInfo = reportedCounterparts.get(peerCode);
     const isReported = reportedInfo !== undefined;
 
-    // Decision D3: Tier 1 requirements:
-    // Requires status 'approved' or 'confirmed' OR provenance 'moderator_confirmed'
-    // AND provenance other than 'seed_observation'.
+    // Decision D3 & Decision D11 (Option A): Tier 1 requirements:
+    // Requires:
+    // 1. Acoustic reason ('similar_sounding' or 'headset_misrecognition').
+    //    Reasons 'similar_check_character' and 'other' reflect non-acoustic layout/misplacement
+    //    or check collision, and are excluded as a deliberate fail-safe against unreliable submitter selection.
+    // 2. Status 'approved' or 'confirmed' OR provenance 'moderator_confirmed'.
+    // 3. Provenance other than 'seed_observation'.
+    const isAcousticReason =
+      reportedInfo?.report.reason === 'similar_sounding' ||
+      reportedInfo?.report.reason === 'headset_misrecognition';
+
     const qualifiesForTier1 =
       isReported &&
       reportedInfo.report.provenance !== 'seed_observation' &&
+      isAcousticReason &&
       (reportedInfo.report.status === 'approved' ||
         reportedInfo.report.status === 'confirmed' ||
         reportedInfo.report.provenance === 'moderator_confirmed');

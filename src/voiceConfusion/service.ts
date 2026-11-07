@@ -1059,6 +1059,69 @@ export async function getAllActiveReports(): Promise<VoiceConfusionReport[]> {
   );
 }
 
+export interface LocationReportsResult {
+  reports: VoiceConfusionReport[];
+  isTruncated: boolean;
+}
+
+/**
+ * Targeted read-only query for reports where voiced or found location equals the normalised input.
+ *
+ * Compliance:
+ * - Read-only SELECT matching public RLS policy.
+ * - Filters for statuses ['community_submitted', 'confirmed', 'approved'].
+ * - Exact-match lookup on normalised columns (voiced_location_norm / found_location_norm).
+ * - Explicitly bounded with a limit parameter (default 100).
+ * - Flags isTruncated = true when database rows exceed the limit.
+ */
+export async function fetchLocationReports(
+  normalizedLocation: string,
+  limit: number = 100
+): Promise<LocationReportsResult> {
+  const cleanLoc = normaliseLocationCode(normalizedLocation);
+  if (!cleanLoc) {
+    return { reports: [], isTruncated: false };
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    // Request limit + 1 to detect if results were truncated
+    const { data, error } = await supabase
+      .from('voice_confusion_reports')
+      .select('*')
+      .in('status', ['community_submitted', 'confirmed', 'approved'])
+      .or(
+        `voiced_location_norm.eq.${cleanLoc},found_location_norm.eq.${cleanLoc},voiced_location.eq.${cleanLoc},found_location.eq.${cleanLoc}`
+      )
+      .order('created_at', { ascending: false })
+      .limit(limit + 1);
+
+    if (error) {
+      console.error('fetchLocationReports query failed:', error);
+      throw new Error(error.message || 'Database query failed');
+    }
+
+    const allData = (data as VoiceConfusionReport[]) || [];
+    const isTruncated = allData.length > limit;
+    const reports = isTruncated ? allData.slice(0, limit) : allData;
+
+    return { reports, isTruncated };
+  }
+
+  // Local fallback: includes non-flagged, non-rejected, non-pending reports
+  const filtered = localReportsStore.filter(r => {
+    const vNorm = normaliseLocationCode(r.voiced_location_norm || r.voiced_location || r.heard_location || '');
+    const fNorm = normaliseLocationCode(r.found_location_norm || r.found_location || r.actual_location || '');
+    const matches = vNorm === cleanLoc || fNorm === cleanLoc;
+    const activeStatus = r.status === 'community_submitted' || r.status === 'confirmed' || r.status === 'approved';
+    return matches && activeStatus;
+  });
+
+  const isTruncated = filtered.length > limit;
+  const reports = isTruncated ? filtered.slice(0, limit) : filtered;
+
+  return { reports, isTruncated };
+}
+
 /**
  * Fetches user-submitted reports for "My Submissions" tab.
  */

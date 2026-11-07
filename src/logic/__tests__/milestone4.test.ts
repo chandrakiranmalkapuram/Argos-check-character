@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { suggestConfusions } from '../voiceConfusion/engine.ts';
 import { calculateStoreCheckChar } from '../storeCalculator.ts';
 import { enumerateGrammarLocations, parseLocationCode } from '../voiceConfusion/grammar.ts';
+import { compareGappedAlignment, TOKEN_GAP_COST } from '../voiceConfusion/phonetics/comparators.ts';
+import { tokenizeStoreLocation } from '../voiceConfusion/tokenizer.ts';
+import { MODEL_SIMILAR_TOKEN_THRESHOLD } from '../voiceConfusion/phonetics/tokenDistanceTable.ts';
 import type { VoiceConfusionReport } from '../voiceConfusion/types.ts';
 
 declare const process: { env: Record<string, string | undefined> };
@@ -270,6 +273,99 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
       // Reverse report MUST NOT elevate 10IA to Tier 1 in candidates list
       const cand10IA = res.candidates.find(c => c.location === '10IA');
       expect(cand10IA?.tier).not.toBe('tier1_reported');
+    });
+
+    it('enforces Decision D11: non-acoustic reasons do not elevate candidate tiers and receive layout/check-character label', () => {
+      // 1. Report with similar_check_character: approved by moderator
+      const checkCharReport: VoiceConfusionReport = {
+        id: 'rep-checkchar-mod',
+        user_id: null,
+        voiced_location: '10AK',
+        found_location: '10DD',
+        reason: 'similar_check_character',
+        status: 'approved',
+        provenance: 'moderator_confirmed',
+        confirmations_count: 5,
+        flag_count: 0,
+        created_at: '2026-11-01T00:00:00.000Z',
+        updated_at: '2026-11-01T00:00:00.000Z'
+      };
+
+      // 2. Report with other: confirmed
+      const otherReport: VoiceConfusionReport = {
+        id: 'rep-other-mod',
+        user_id: null,
+        voiced_location: '10AK',
+        found_location: '10BZ',
+        reason: 'other',
+        status: 'confirmed',
+        provenance: 'community_submitted',
+        confirmations_count: 3,
+        flag_count: 0,
+        created_at: '2026-11-01T00:00:00.000Z',
+        updated_at: '2026-11-01T00:00:00.000Z'
+      };
+
+      const res = suggestConfusions('10AK', {
+        communityReports: [checkCharReport, otherReport]
+      });
+
+      // 10DD must NOT be elevated to Tier 1; ranks on phonetics alone (Tier 2 model similar)
+      const cand10DD = res.candidates.find(c => c.location === '10DD');
+      expect(cand10DD?.tier).toBe('tier2_model_similar');
+
+      // 10BZ must NOT be elevated to Tier 1; ranks on phonetics alone (Tier 3 possible)
+      const cand10BZ = res.candidates.find(c => c.location === '10BZ');
+      expect(cand10BZ?.tier).toBe('tier3_possible');
+
+      // Both appear in reportedPairs with non-acoustic label
+      const rep10DD = res.reportedPairs.find(p => p.reportedLocation === '10DD');
+      expect(rep10DD?.label).toBe('Reported (layout / check-character), does not affect ranking');
+      expect(rep10DD?.reason).toBe('similar_check_character');
+
+      const rep10BZ = res.reportedPairs.find(p => p.reportedLocation === '10BZ');
+      expect(rep10BZ?.label).toBe('Reported (layout / check-character), does not affect ranking');
+      expect(rep10BZ?.reason).toBe('other');
+    });
+
+    it('verifies gap-aligned tokens count as farTokens (distance 0.90) and contribute to differingTokens cap', () => {
+      // CA01 (Cash Office) tokenizes to 3 tokens: ['CASH OFFICE', 'ZERO', 'ONE']
+      // 01AA (Standard) tokenizes to 4 tokens: ['ZERO', 'ONE', 'ALPHA', 'ALPHA']
+      const tokensA = tokenizeStoreLocation('CA01');
+      const tokensB = tokenizeStoreLocation('01AA');
+
+      expect(tokensA.length).toBe(3);
+      expect(tokensB.length).toBe(4);
+
+      const comp = compareGappedAlignment(tokensA, tokensB);
+
+      // Verify gap pair exists with null token and distance equal to TOKEN_GAP_COST (0.90)
+      const gapPair = comp.alignment.find(p => p.tokenA === null || p.tokenB === null);
+      expect(gapPair).toBeDefined();
+      expect(gapPair?.distance).toBe(TOKEN_GAP_COST);
+      expect(gapPair?.distance).toBe(0.9);
+
+      // Verify gap distance exceeds MODEL_SIMILAR_TOKEN_THRESHOLD (0.55), making it a far token
+      expect(gapPair!.distance).toBeGreaterThan(MODEL_SIMILAR_TOKEN_THRESHOLD);
+
+      // Verify how engine counts tokens: gap token increments farTokens and differingTokens
+      let farTokens = 0;
+      let nearTokens = 0;
+      for (const pair of comp.alignment) {
+        if (pair.distance === 0) continue;
+        if (pair.distance <= MODEL_SIMILAR_TOKEN_THRESHOLD) {
+          nearTokens++;
+        } else {
+          farTokens++;
+        }
+      }
+      expect(farTokens).toBeGreaterThanOrEqual(1);
+      const differingTokens = nearTokens + farTokens;
+      expect(differingTokens).toBeGreaterThanOrEqual(1);
+
+      // A location with a gap token can NEVER be Tier 2 because Tier 2 requires farTokens === 0
+      const satisfiesTier2 = farTokens === 0;
+      expect(satisfiesTier2).toBe(false);
     });
   });
 

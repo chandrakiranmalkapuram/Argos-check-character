@@ -93,8 +93,14 @@ export interface ReportedPairEntry {
   status: VoiceConfusionStatus;
   provenance: ReportProvenance;
   reportCount: number;
-  label: 'Reference example' | 'Reported, unverified' | 'Approved' | 'Confirmed';
+  label:
+    | 'Reference example'
+    | 'Reported, unverified'
+    | 'Approved'
+    | 'Confirmed'
+    | 'Reported (layout / check-character), does not affect ranking';
   direction: 'voiced_to_found' | 'opposite_direction';
+  reason?: VoiceConfusionReason;
   details?: string;
 }
 
