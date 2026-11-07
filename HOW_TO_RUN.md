@@ -47,10 +47,18 @@ The development server supports hot module replacement (HMR), so any code change
 
 ## 4. Running the Automated Test Suite
 
-Run the complete Vitest test suite (includes calculation algorithms, normalisation, validation, duplicate detection, and moderation security):
+### Default Fast Suite (~5 seconds)
+Run the fast deterministic Vitest test suite (includes calculation algorithms, normalisation, validation, duplicate detection, moderation security, and a 300-sample deterministic property test across all four store location patterns):
 
 ```bash
 npm test
+```
+
+### Complete Verification Suite with Heavy Census (~40 seconds)
+Before milestone reports and major releases, run the full verification suite (activates the 1,000-input Monte Carlo census across Caps 2–4 and the expanded 2,000-input property test via `FULL_TEST_SUITE=1`):
+
+```bash
+npm run test:full
 ```
 
 To run tests in watch mode during development:
@@ -171,4 +179,25 @@ To enable shared production persistence with **Supabase PostgreSQL**:
    - In-memory mock data (used only when unconfigured) carries 🧪 `Demo Sample` and is never written to Supabase.
 5. **Provisioning Administrators:**
    Admins and moderators are provisioned server-side via SQL in `public.user_roles`. Detailed instructions and verification checklists are in [`VOICE_CONFUSION_SETUP.md`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/VOICE_CONFUSION_SETUP.md).
+
+---
+
+## 9. Voice Confusion Suggestion Engine: Tier Conventions & Model Limitations
+
+### Tier Caps and Conventions
+The suggestion engine ranks same-check candidate locations into three risk tiers based on acoustic phonetic similarity:
+- **Tier 1 (Reported & Confirmed):** Pairs with verified community corroboration (`approved` or `confirmed` status, or `moderator_confirmed` provenance). Note that `seed_observation` provenance displays only as a "Reference example" and never elevates a tier.
+- **Tier 2 (Model-Similar):** Pairs where **all differing tokens** are model-similar (within the near threshold `0.55`) and the total count of differing tokens satisfies `differingTokens <= MAX_DIFFERING_TOKENS_TIER2` (configured to **2**).
+- **Tier 3 (Possible Confusion):** Pairs with **exactly one far token** (token distance `> 0.55`) and at most `MAX_DIFFERING_TOKENS_TIER3` total differing tokens (configured to **2**). An optional far-token distance ceiling (`maxFarTokenDistanceTier3`, default off) can further bound the maximum distance of that far token.
+
+> [!NOTE]
+> **Convention Rationale:** The tier caps (`MAX_DIFFERING_TOKENS_TIER2 = 2` and `MAX_DIFFERING_TOKENS_TIER3 = 2`) are established as conventions under the hypothesis of **independent token errors** (i.e. single or double acoustic confusions are substantially more plausible than 3 or 4 simultaneous independent token misrecognitions). The known reference pairs cannot discriminate between caps 2, 3, or 4 because all known target pairs have at most 2 differing tokens. These caps should be revisited and tuned when large-scale operational warehouse telemetry becomes available.
+
+### Model Limitations
+1. **Multi-Token Outliers:**
+   - `08MN / 20AN` (3 far tokens) and `81ZE / 50ER` (4 far tokens) never appear in the phonetic tiers (Tier 2 or Tier 3) at any cap. They surface strictly through `reportedPairs` (badged as "Reference example") or in the collapsed arithmetic collision pool when `includeArithmeticCollisions: true`.
+2. **Multiple Far Tokens:**
+   - `21EZ / 11BZ` (2 far tokens) and `10AK / 10HL` (2 far tokens) have more than 1 far token, so they do not meet Tier 3 criteria (which requires exactly 1 far token). They appear only in the collapsed arithmetic collision pool.
+3. **Pure Acoustic vs. Human Errors:**
+   - Not all reported confusions are acoustic. For example, shelf mispicks or digit transpositions may occur due to physical stock misplacement or reading errors rather than headset misrecognition.
 

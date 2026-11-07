@@ -29,18 +29,26 @@ export type {
 } from './types.ts';
 
 /**
- * Maximum number of differing tokens permitted for a Tier 2 candidate.
- * Candidates with more differing tokens fall into arithmetic collisions.
- * Provisional default: 4 (unrestricted), subject to evaluation.
+ * Maximum number of differing tokens permitted for a Tier 2 (model-similar) candidate.
+ * In Tier 2, all differing tokens must be model-similar (farTokens === 0) and the
+ * total number of differing tokens must not exceed this cap.
+ *
+ * Convention: Set to 2 under the assumption of independent token errors (fewer independent
+ * token errors are more plausible than 3 or 4 simultaneous errors). Note that the known reference
+ * pairs cannot discriminate between caps 2-4 (all known pairs have at most 2 differing tokens);
+ * this value should be revisited and recalibrated with real operational warehouse telemetry.
  */
-export const MAX_DIFFERING_TOKENS_TIER2 = 4;
+export const MAX_DIFFERING_TOKENS_TIER2 = 2;
 
 /**
- * Maximum total number of differing tokens permitted for a Tier 3 candidate
+ * Maximum total number of differing tokens permitted for a Tier 3 (possible confusion) candidate
  * (which must have exactly 1 far token, and at most MAX_DIFFERING_TOKENS_TIER3 differing tokens in total).
- * Provisional default: 4 (unrestricted), subject to evaluation.
+ *
+ * Convention: Set to 2 under the assumption of independent token errors.
+ * Note that the known reference pairs cannot discriminate between caps 2-4; this value should
+ * be revisited with real data.
  */
-export const MAX_DIFFERING_TOKENS_TIER3 = 4;
+export const MAX_DIFFERING_TOKENS_TIER3 = 2;
 
 /**
  * Builds plain-English explanation of voice-confusion risk.
@@ -106,6 +114,15 @@ function buildPlainEnglishExplanation(
  * - Invariant I7: Different-check community reports isolated into a separate section.
  * - Decision D3: seed_observation provenance never elevates a tier. Tier 1 requires approved/confirmed status.
  * - Decision D9: Reported pairs section includes all same-check pairs with labels and badges.
+ *
+ * Model Limitations & Architecture Notes:
+ * - 08MN / 20AN (3 far tokens) and 81ZE / 50ER (4 far tokens) never appear in the phonetic tiers
+ *   (Tier 2 or Tier 3) at any cap; they surface strictly through reportedPairs (with "Reference example" badge)
+ *   or the collapsed arithmetic collision pool (`includeArithmeticCollisions: true`).
+ * - 21EZ / 11BZ (2 far tokens) and 10AK / 10HL (2 far tokens) have more than 1 far token and therefore
+ *   appear only in the collapsed arithmetic collision pool.
+ * - Tier 2 (model-similar) and Tier 3 (possible) caps are set to 2 differing tokens as a convention
+ *   under the hypothesis that fewer independent token errors are more plausible.
  */
 export function suggestConfusions(
   location: string,

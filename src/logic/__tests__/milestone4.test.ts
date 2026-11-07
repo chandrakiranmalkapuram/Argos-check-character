@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { suggestConfusions } from '../voiceConfusion/engine.ts';
 import { calculateStoreCheckChar } from '../storeCalculator.ts';
-import { buildStoreCheckIndex } from '../voiceConfusion/checkIndex.ts';
+import { enumerateGrammarLocations, parseLocationCode } from '../voiceConfusion/grammar.ts';
 import type { VoiceConfusionReport } from '../voiceConfusion/types.ts';
+
+declare const process: { env: Record<string, string | undefined> };
 
 describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanations', () => {
   describe('1. INVARIANT I1 & I2: Same-Check Gate and Calculator-Backed Fidelity', () => {
@@ -271,14 +273,25 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
     });
   });
 
-  describe('6. Large-Scale Property Tests over 2,000 Random Supported Inputs', () => {
+  describe('6. Large-Scale Property Tests over Supported Store Inputs', () => {
+    const isFull = process.env.FULL_TEST_SUITE === '1';
+
     it(
-      'strictly satisfies Invariant I2 (Same-Check Gate) across 2,000 random inputs for visible and collapsed candidates',
+      'strictly satisfies Invariant I2 (Same-Check Gate) across inputs spanning all four patterns (default 300 samples, 2,000 in test:full)',
       () => {
-        const { index: checkIndexMap } = buildStoreCheckIndex();
-        const allCodes: string[] = [];
-        for (const [_, list] of checkIndexMap.entries()) {
-          allCodes.push(...list);
+        const allCodes = enumerateGrammarLocations();
+        const byPattern = {
+          standard: [] as string[],
+          jewellery_security: [] as string[],
+          linbin_bulk: [] as string[],
+          cash_office_collection_point: [] as string[]
+        };
+
+        for (const code of allCodes) {
+          const parsed = parseLocationCode(code);
+          if (parsed.kind === 'supported') {
+            byPattern[parsed.pattern].push(code);
+          }
         }
 
         // Deterministic PRNG LCG (seed = 98765)
@@ -288,10 +301,27 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
           return seed / 4294967296;
         }
 
-        const sampleSize = 2000;
-        for (let i = 0; i < sampleSize; i++) {
-          const idx = Math.floor(lcg() * allCodes.length);
-          const code = allCodes[idx];
+        const sampleCodes: string[] = [];
+        if (isFull) {
+          for (let i = 0; i < 2000; i++) {
+            const idx = Math.floor(lcg() * allCodes.length);
+            sampleCodes.push(allCodes[idx]);
+          }
+        } else {
+          // 300 deterministic inputs spanning all 4 patterns
+          function sampleFrom(list: string[], count: number) {
+            for (let i = 0; i < count; i++) {
+              const idx = Math.floor(lcg() * list.length);
+              sampleCodes.push(list[idx]);
+            }
+          }
+          sampleFrom(byPattern.standard, 150);
+          sampleFrom(byPattern.jewellery_security, 70);
+          sampleFrom(byPattern.linbin_bulk, 60);
+          sampleFrom(byPattern.cash_office_collection_point, 20);
+        }
+
+        for (const code of sampleCodes) {
           const res = suggestConfusions(code, { includeArithmeticCollisions: true });
           expect(res.isValid).toBe(true);
 
@@ -311,7 +341,7 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
           }
         }
       },
-      60_000 // 60s timeout set exclusively for this 2,000-sample test
+      60_000 // 60s timeout set exclusively for property test
     );
   });
 

@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "deploy": "wrangler deploy",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:full": "FULL_TEST_SUITE=1 vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
