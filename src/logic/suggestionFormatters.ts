@@ -1,6 +1,10 @@
 import type { CandidateSuggestion } from './candidateRanking.ts';
 
 /**
+ * @deprecated Legacy suggestion formatters.
+ * Retained for backwards compatibility with `UnreferencedZoneLookup.tsx`.
+ * Superseded by the plain English explanations built directly into `src/logic/voiceConfusion/engine.ts`.
+ *
  * Maps technical algorithmic explanations into concise plain English
  * for warehouse colleagues while preserving accuracy.
  */

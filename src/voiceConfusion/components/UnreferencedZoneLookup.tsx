@@ -147,6 +147,11 @@ export const UnreferencedZoneLookup: React.FC<UnreferencedZoneLookupProps> = ({
                       <span className={`vc-evidence-badge vc-evidence-badge--${cand.type}`}>
                         {evidenceLabel}
                       </span>
+                      {cand.type === 'reference_fallback' && (
+                        <span className="vc-fallback-label" style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginLeft: '0.5rem' }}>
+                          format-valid reference code, not verified to exist
+                        </span>
+                      )}
                     </div>
 
                     {onSelectLocation && (

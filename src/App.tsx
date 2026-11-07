@@ -2,15 +2,14 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Header } from './components/Header.tsx';
 import { CalculatorInput } from './components/CalculatorInput.tsx';
 import { ResultCard } from './components/ResultCard.tsx';
-import { SimilarLocationsList } from './components/SimilarLocationsList.tsx';
-import { CandidateSuggestionsList } from './components/CandidateSuggestionsList.tsx';
+import { VoiceConfusionPanel } from './components/VoiceConfusionPanel.tsx';
 import { ReverseLookupView } from './components/ReverseLookupView.tsx';
 import { SearchHistory } from './components/SearchHistory.tsx';
 import { InfoModal } from './components/InfoModal.tsx';
 import { VoiceConfusionView } from './voiceConfusion/VoiceConfusionView.tsx';
 import { AuthModal } from './voiceConfusion/components/AuthModal.tsx';
-import { getCurrentUser, onAuthStateChange, signOutUser, getAllActiveReports } from './voiceConfusion/service.ts';
-import type { AuthUser, VoiceConfusionReport } from './voiceConfusion/types.ts';
+import { getCurrentUser, onAuthStateChange, signOutUser } from './voiceConfusion/service.ts';
+import type { AuthUser } from './voiceConfusion/types.ts';
 import { evaluateQuery } from './logic/index.ts';
 import type { CheckMode } from './logic/types.ts';
 import { useSearchHistory } from './hooks/useSearchHistory.ts';
@@ -23,15 +22,12 @@ export function App() {
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isHeaderAuthOpen, setIsHeaderAuthOpen] = useState(false);
-  const [communityReports, setCommunityReports] = useState<VoiceConfusionReport[]>([]);
 
   useEffect(() => {
     getCurrentUser().then(setCurrentUser);
     const unsubscribe = onAuthStateChange(user => {
       setCurrentUser(user);
     });
-
-    getAllActiveReports().then(setCommunityReports);
 
     return () => unsubscribe();
   }, []);
@@ -90,7 +86,6 @@ export function App() {
   const handleOpenVoiceConfusionForLocation = (loc?: string) => {
     setVoiceConfusionQuery(loc || query);
     setActiveAppTab('voice-confusion');
-    getAllActiveReports().then(setCommunityReports);
   };
 
   return (
@@ -112,7 +107,6 @@ export function App() {
             className={`app-nav-tab ${activeAppTab === 'calculator' ? 'active' : ''}`}
             onClick={() => {
               setActiveAppTab('calculator');
-              getAllActiveReports().then(setCommunityReports);
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -186,17 +180,9 @@ export function App() {
                   <ResultCard result={evaluation.rfcResult} />
                 ) : null}
 
-                {/* Candidate Suggestions for Voice-Confused / Unreferenced Locations */}
-                <CandidateSuggestionsList
+                {/* Unified Voice Confusion Panel (Milestone 6) */}
+                <VoiceConfusionPanel
                   currentLocation={query}
-                  communityReports={communityReports}
-                  onSelectLocation={handleSelectQuery}
-                  onOpenVoiceConfusionReference={handleOpenVoiceConfusionForLocation}
-                />
-
-                {/* Voice Confusion Warnings (Same Check Character Collisions) */}
-                <SimilarLocationsList
-                  locations={evaluation.similarLocations}
                   onSelectLocation={handleSelectQuery}
                   onOpenVoiceConfusionReports={handleOpenVoiceConfusionForLocation}
                 />

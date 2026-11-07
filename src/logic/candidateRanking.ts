@@ -1,4 +1,9 @@
 /**
+ * @deprecated Legacy Candidate-Ranking Engine.
+ * Superseded by the pure suggestion engine in `src/logic/voiceConfusion/engine.ts`.
+ * Retained exclusively for backwards compatibility with `UnreferencedZoneLookup.tsx`.
+ * Note: its reference_fallback invents baseline codes.
+ *
  * Deterministic Candidate-Ranking Engine for Voice-Confused and Unreferenced Warehouse Locations.
  * 
  * Signals:
