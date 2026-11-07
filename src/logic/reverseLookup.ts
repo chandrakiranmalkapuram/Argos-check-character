@@ -1,4 +1,5 @@
-import { NATO_PHONETIC_ALPHABET, POSITION_WEIGHTS } from './constants.ts';
+import { NATO_PHONETIC_ALPHABET } from './constants.ts';
+import { calculateStoreCheckChar } from './storeCalculator.ts';
 import type { ReverseLookupResult } from './types.ts';
 
 // Precomputed cache map: CheckCharacter -> { [aisle: string]: string[] }
@@ -7,6 +8,8 @@ let cachedReverseIndex: Map<string, Map<string, string[]>> | null = null;
 /**
  * Builds the inverted index mapping each of the 26 NATO phonetic check characters
  * to all store locations from 00AA to 99ZZ grouped by aisle (00..99).
+ *
+ * Invariant I1: Calls calculateStoreCheckChar for every location. No duplicate formula.
  */
 export function buildReverseIndex(): Map<string, Map<string, string[]>> {
   if (cachedReverseIndex) {
@@ -20,39 +23,24 @@ export function buildReverseIndex(): Map<string, Map<string, string[]>> {
     index.set(word, new Map<string, string[]>());
   }
 
-  // Pre-calculate ASCII values and weighted components
-  // c0 in '0'..'9', c1 in '0'..'9', c2 in 'A'..'Z', c3 in 'A'..'Z'
-  const ascii0to9: { char: string; code: number }[] = [];
-  for (let d = 0; d <= 9; d++) {
-    ascii0to9.push({ char: d.toString(), code: 48 + d });
+  const letters: string[] = [];
+  for (let i = 0; i < 26; i++) {
+    letters.push(String.fromCharCode(65 + i));
   }
 
-  const asciiAtoZ: { char: string; code: number }[] = [];
-  for (let l = 0; l < 26; l++) {
-    asciiAtoZ.push({ char: String.fromCharCode(65 + l), code: 65 + l });
-  }
-
-  const w0 = POSITION_WEIGHTS[0]; // 5
-  const w1 = POSITION_WEIGHTS[1]; // 7
-  const w2 = POSITION_WEIGHTS[2]; // 7
-  const w3 = POSITION_WEIGHTS[3]; // 3
-
+  // Enumerate standard store locations (00AA - 99ZZ) in deterministic order
   for (let a = 0; a <= 99; a++) {
-    const d0 = Math.floor(a / 10);
-    const d1 = a % 10;
     const aisleStr = a.toString().padStart(2, '0');
 
-    const sumAisle = ascii0to9[d0].code * w0 + ascii0to9[d1].code * w1;
-
     for (let b = 0; b < 26; b++) {
-      const bayObj = asciiAtoZ[b];
-      const sumBay = sumAisle + bayObj.code * w2;
+      const bayChar = letters[b];
 
       for (let s = 0; s < 26; s++) {
-        const shelfObj = asciiAtoZ[s];
-        const total = sumBay + shelfObj.code * w3;
-        const remainder = total % 26;
-        const checkWord = NATO_PHONETIC_ALPHABET[remainder];
+        const shelfChar = letters[s];
+        const location = `${aisleStr}${bayChar}${shelfChar}`;
+
+        // INVARIANT I1: calculateStoreCheckChar is the single source of truth
+        const checkWord = calculateStoreCheckChar(location).checkChar;
 
         const aisleMap = index.get(checkWord);
         if (aisleMap) {
@@ -61,7 +49,7 @@ export function buildReverseIndex(): Map<string, Map<string, string[]>> {
             list = [];
             aisleMap.set(aisleStr, list);
           }
-          list.push(`${aisleStr}${bayObj.char}${shelfObj.char}`);
+          list.push(location);
         }
       }
     }

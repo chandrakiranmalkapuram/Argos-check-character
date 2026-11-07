@@ -4,25 +4,19 @@
  * provenance tracking, and candidate ranking.
  */
 
-export type VoiceConfusionReason =
-  | 'similar_sounding'
-  | 'headset_misrecognition'
-  | 'similar_check_character'
-  | 'other';
+import type {
+  VoiceConfusionReason,
+  ReportProvenance,
+  VoiceConfusionStatus,
+  VoiceConfusionReport
+} from '../logic/voiceConfusion/types.ts';
 
-export type ReportProvenance =
-  | 'community_submitted'
-  | 'seed_observation'
-  | 'moderator_confirmed';
-
-export type VoiceConfusionStatus =
-  | 'community_submitted'
-  | 'confirmed'
-  | 'flagged'
-  | 'archived'
-  | 'approved'
-  | 'rejected'
-  | 'pending';
+export type {
+  VoiceConfusionReason,
+  ReportProvenance,
+  VoiceConfusionStatus,
+  VoiceConfusionReport
+};
 
 export interface ReasonOption {
   value: VoiceConfusionReason;
@@ -52,42 +46,6 @@ export const VOICE_CONFUSION_REASONS: readonly ReasonOption[] = [
     description: 'Bulk, Linbin or other operational warehouse confusion.'
   }
 ] as const;
-
-export interface VoiceConfusionReport {
-  id: string;
-  user_id?: string | null;
-
-  // Primary terminology (Voice Confusion Reference)
-  voiced_location: string;
-  found_location: string;
-
-  // Stored normalized values
-  voiced_location_norm?: string;
-  found_location_norm?: string;
-
-  // Raw original submitted values for audit trail
-  raw_voiced_location?: string;
-  raw_found_location?: string;
-
-  // Backward compatibility aliases for existing views/tests
-  heard_location?: string;
-  actual_location?: string;
-  heard_location_norm?: string;
-  actual_location_norm?: string;
-
-  reason: VoiceConfusionReason;
-  details?: string | null;
-
-  status: VoiceConfusionStatus;
-  provenance: ReportProvenance;
-
-  confirmations_count: number;
-  flag_count: number;
-
-  created_at: string;
-  updated_at: string;
-  moderator_notes?: string | null;
-}
 
 export type UserRole = 'admin' | 'moderator' | 'user';
 

@@ -22,7 +22,7 @@ export function isValidStorePattern(loc: string): boolean {
  * Returns the spoken word for a character at position i within a location code,
  * accounting for prefix designations (e.g., J -> JEWELLERY at index 0).
  */
-export function getWordAtPosition(location: string, index: number): string {
+function getWordAtPosition(location: string, index: number): string {
   if (index === 0 && location[0] in STORE_PREFIX_MAP) {
     return STORE_PREFIX_MAP[location[0]] ?? getSpokenWord(location[0]);
   }
@@ -30,6 +30,9 @@ export function getWordAtPosition(location: string, index: number): string {
 }
 
 /**
+ * @deprecated Legacy heuristic same-check finder.
+ * Superseded by the complete, calculator-backed suggestion engine in `src/logic/voiceConfusion/engine.ts`.
+ *
  * Finds locations that are 1 voice mistake away (either a single misheard character
  * or two swapped adjacent characters) that happen to produce the exact same check character.
  * This directly alerts stockroom pickers to potential stock misplacement.

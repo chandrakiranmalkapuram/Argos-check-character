@@ -23,6 +23,12 @@ export const DEFAULT_VALIDATION_CONFIG: ValidationConfig = {
   locationPattern: /^[A-Z0-9+\-/]+$/
 };
 
+/**
+ * Strict allow-list regex for normalised location filters in database queries.
+ * Enforces 2 to 10 characters consisting only of [A-Z0-9+\-/].
+ */
+export const LOCATION_FILTER_ALLOWLIST_REGEX = /^[A-Z0-9+\-/]{2,10}$/;
+
 export interface FormValidationErrors {
   voiced_location?: string;
   found_location?: string;

@@ -1,6 +1,10 @@
 import type { CandidateSuggestion } from './candidateRanking.ts';
 
 /**
+ * @deprecated Legacy suggestion formatters.
+ * Retained for backwards compatibility with `UnreferencedZoneLookup.tsx`.
+ * Superseded by the plain English explanations built directly into `src/logic/voiceConfusion/engine.ts`.
+ *
  * Maps technical algorithmic explanations into concise plain English
  * for warehouse colleagues while preserving accuracy.
  */
@@ -35,20 +39,20 @@ export function getPlainEnglishReason(
 
   // 3. Digit Pair Confusions
   if (
-    (/\b08\b/i.test(firstExp) || /zero-eight/i.test(firstExp)) &&
-    (/\b20\b/i.test(firstExp) || /twenty/i.test(firstExp))
+    (/\b08\b/i.test(firstExp) || /zero-eight/i.test(firstExp) || /zero eight/i.test(firstExp)) &&
+    (/\b20\b/i.test(firstExp) || /two zero/i.test(firstExp))
   ) {
     return 'Numbers "08" and "20" sound very similar over voice headsets.';
   }
   if (
-    (/\b16\b/i.test(firstExp) || /sixteen/i.test(firstExp)) &&
-    (/\b10\b/i.test(firstExp) || /\bten\b/i.test(firstExp))
+    (/\b16\b/i.test(firstExp) || /one six/i.test(firstExp)) &&
+    (/\b10\b/i.test(firstExp) || /one zero/i.test(firstExp))
   ) {
     return 'Numbers "16" and "10" sound very similar over voice headsets.';
   }
   if (
-    (/\b81\b/i.test(firstExp) || /eighty-one/i.test(firstExp)) &&
-    (/\b50\b/i.test(firstExp) || /fifty/i.test(firstExp))
+    (/\b81\b/i.test(firstExp) || /eight one/i.test(firstExp)) &&
+    (/\b50\b/i.test(firstExp) || /five zero/i.test(firstExp))
   ) {
     return 'Numbers "81" and "50" sound very similar over voice headsets.';
   }

@@ -1,4 +1,9 @@
 /**
+ * @deprecated Legacy Candidate-Ranking Engine.
+ * Superseded by the pure suggestion engine in `src/logic/voiceConfusion/engine.ts`.
+ * Retained exclusively for backwards compatibility with `UnreferencedZoneLookup.tsx`.
+ * Note: its reference_fallback invents baseline codes.
+ *
  * Deterministic Candidate-Ranking Engine for Voice-Confused and Unreferenced Warehouse Locations.
  * 
  * Signals:
@@ -97,28 +102,28 @@ const DOCUMENTED_HEURISTICS: readonly AcousticSubstitution[] = [
     source: '08',
     target: '20',
     type: 'digit_pair',
-    reason: 'Spoken "zero-eight" / "oh-eight" acoustically confused with "twenty" / "two-zero"',
+    reason: 'Spoken "zero-eight" / "oh-eight" acoustically confused with "two zero"',
     points: 260
   },
   {
     source: '20',
     target: '08',
     type: 'digit_pair',
-    reason: 'Spoken "twenty" / "two-zero" acoustically confused with "zero-eight" / "oh-eight"',
+    reason: 'Spoken "two zero" acoustically confused with "zero-eight" / "oh-eight"',
     points: 260
   },
   {
     source: '81',
     target: '50',
     type: 'digit_pair',
-    reason: 'Spoken "eighty-one" acoustically masked as "fifty" in high-frequency warehouse noise',
+    reason: 'Spoken "eight one" acoustically masked as "five zero" in high-frequency warehouse noise',
     points: 260
   },
   {
     source: '50',
     target: '81',
     type: 'digit_pair',
-    reason: 'Spoken "fifty" acoustically masked as "eighty-one" in high-frequency warehouse noise',
+    reason: 'Spoken "five zero" acoustically masked as "eight one" in high-frequency warehouse noise',
     points: 260
   },
 
@@ -177,7 +182,7 @@ const DOCUMENTED_HEURISTICS: readonly AcousticSubstitution[] = [
 /**
  * Checks whether a candidate code is a valid warehouse location format.
  */
-export function isSyntacticallyValidCode(code: string): boolean {
+function isSyntacticallyValidCode(code: string): boolean {
   const upper = code.trim().toUpperCase();
   if (upper.length !== 4) return false;
   return isValidStorePattern(upper) || isRfcCandidate(upper);
@@ -186,7 +191,7 @@ export function isSyntacticallyValidCode(code: string): boolean {
 /**
  * Computes check character and spoken phrasing for any candidate code.
  */
-export function getCandidateCheckInfo(code: string): { checkChar: string; spokenText: string } {
+function getCandidateCheckInfo(code: string): { checkChar: string; spokenText: string } {
   const store = calculateStoreCheckChar(code);
   if (store.isValid && store.checkChar !== 'NULL') {
     return {

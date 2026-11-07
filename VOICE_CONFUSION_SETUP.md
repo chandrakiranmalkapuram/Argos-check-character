@@ -194,3 +194,28 @@ Follow these steps to verify your production deployment:
    - Attempting to submit without valid locations is blocked client-side and in the database RPC.
    - Submitting 6 reports in under 10 minutes triggers: `"Submission limit reached. Please wait a few minutes before sharing another correction."`
 
+---
+
+## 8. Tier 1 Elevation Predicate & Free-Text Disclosure Rules (Decisions D11 & D14)
+
+### Tier 1 Elevation Predicate (Decision D11)
+A candidate is elevated to **Tier 1 (Reported sound-alike)** if and only if **ALL** of the following conditions are satisfied:
+1. **Provenance:** Provenance is **not** `'seed_observation'` (reference seeds never elevate candidates).
+2. **Reason:** Reason is strictly acoustic: either `'similar_sounding'` or `'headset_misrecognition'`. Reasons `'similar_check_character'` and `'other'` reflect layout or collision issues and do not elevate ranking.
+3. **Status Whitelist/Blacklist:** Status is **not** `'flagged'`, `'rejected'`, `'archived'`, or `'pending'`.
+4. **Trust Level:**
+   - Either `status` is `'approved'` or `'confirmed'`;
+   - **OR** `provenance` is `'moderator_confirmed'` with `status = 'community_submitted'`.
+
+> [!NOTE]
+> In the current PostgreSQL schema and service code, only reports with `status` `'approved'` or `'confirmed'` can elevate a candidate in production. The `provenance = 'moderator_confirmed'` branch exists for future extensibility when moderation workflows directly mutate the provenance column. Today, nothing in the migrations, database RPCs, or service layer sets `provenance = 'moderator_confirmed'`.
+
+Disallowed statuses (`flagged`, `'rejected'`, `'archived'`, `'pending'`) with `moderator_confirmed` provenance do **not** elevate.
+
+### Free-Text Details Handling (Decision D14)
+- **Seed Observations:** The `details` field is suppressed entirely for provenance `'seed_observation'` (seed observations contain numbers and notes from the reference specification).
+- **Community Reports:** For all other reports, `details` is rendered as plain text limited to 200 characters inside a collapsed `<details>` disclosure labelled:
+  `"Reporter's note (free text, unverified)"`.
+- Application-generated text strictly obeys Invariant I6 (digit-by-digit spoken words); user-supplied free text is exempt but isolated within this disclosure.
+
+

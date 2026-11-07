@@ -14,7 +14,8 @@
 
 import { supabase, isSupabaseConfigured } from './supabaseClient.ts';
 import { normaliseLocationCode, getReportCompositeKey } from './normalizer.ts';
-import { validateReportSubmission } from './validation.ts';
+import { validateReportSubmission, LOCATION_FILTER_ALLOWLIST_REGEX } from './validation.ts';
+import { SEED_REFERENCE_OBSERVATIONS as PURE_SEED_REFERENCE_OBSERVATIONS } from '../logic/voiceConfusion/seedObservations.ts';
 import type {
   VoiceConfusionReport,
   VoiceConfusionStatus,
@@ -43,165 +44,7 @@ import type {
  * Plus legacy sample observations to preserve backward test compatibility.
  */
 export const SEED_REFERENCE_OBSERVATIONS: VoiceConfusionReport[] = [
-  // 1. Seed Observation 1: 08MN -> 20AN
-  {
-    id: '5eed0000-0000-4000-8000-000000000001',
-    user_id: null,
-    voiced_location: '08MN',
-    found_location: '20AN',
-    raw_voiced_location: '08MN',
-    raw_found_location: '20AN',
-    voiced_location_norm: '08MN',
-    found_location_norm: '20AN',
-    heard_location: '08MN',
-    actual_location: '20AN',
-    heard_location_norm: '08MN',
-    actual_location_norm: '20AN',
-    reason: 'similar_sounding',
-    details: 'Spoken "zero-eight" acoustically confused with "twenty" over radio, combined with nasal M/N confusion.',
-    status: 'community_submitted',
-    provenance: 'seed_observation',
-    confirmations_count: 1,
-    flag_count: 0,
-    created_at: '2026-10-18T08:00:00.000Z',
-    updated_at: '2026-10-18T08:00:00.000Z'
-  },
-  // 2. Seed Observation 2: 16ZG -> 16JA
-  {
-    id: '5eed0000-0000-4000-8000-000000000002',
-    user_id: null,
-    voiced_location: '16ZG',
-    found_location: '16JA',
-    raw_voiced_location: '16ZG',
-    raw_found_location: '16JA',
-    voiced_location_norm: '16ZG',
-    found_location_norm: '16JA',
-    heard_location: '16ZG',
-    actual_location: '16JA',
-    heard_location_norm: '16ZG',
-    actual_location_norm: '16JA',
-    reason: 'similar_sounding',
-    details: 'Aisle 16 stockroom location: ZG confused with JA due to headset consonant sound compression.',
-    status: 'community_submitted',
-    provenance: 'seed_observation',
-    confirmations_count: 1,
-    flag_count: 0,
-    created_at: '2026-10-18T08:30:00.000Z',
-    updated_at: '2026-10-18T08:30:00.000Z'
-  },
-  // 3. Seed Observation 3: 81ZE -> 50ER
-  {
-    id: '5eed0000-0000-4000-8000-000000000003',
-    user_id: null,
-    voiced_location: '81ZE',
-    found_location: '50ER',
-    raw_voiced_location: '81ZE',
-    raw_found_location: '50ER',
-    voiced_location_norm: '81ZE',
-    found_location_norm: '50ER',
-    heard_location: '81ZE',
-    actual_location: '50ER',
-    heard_location_norm: '81ZE',
-    actual_location_norm: '50ER',
-    reason: 'headset_misrecognition',
-    details: 'Spoken "eighty-one" masked as "fifty" in ambient stockroom background noise; ZE heard as ER.',
-    status: 'community_submitted',
-    provenance: 'seed_observation',
-    confirmations_count: 1,
-    flag_count: 0,
-    created_at: '2026-10-18T09:00:00.000Z',
-    updated_at: '2026-10-18T09:00:00.000Z'
-  },
-  // 4. Seed Observation 4: 01MM -> Z01B
-  {
-    id: '5eed0000-0000-4000-8000-000000000004',
-    user_id: null,
-    voiced_location: '01MM',
-    found_location: 'Z01B',
-    raw_voiced_location: '01MM',
-    raw_found_location: 'Z01B',
-    voiced_location_norm: '01MM',
-    found_location_norm: 'Z01B',
-    heard_location: '01MM',
-    actual_location: 'Z01B',
-    heard_location_norm: '01MM',
-    actual_location_norm: 'Z01B',
-    reason: 'other',
-    details: 'Headset phrased Bulk location Z01B as "ZERO ONE BULK BRAVO", which worker mistook for standard aisle 01MM ("ZERO ONE MIKE MIKE").',
-    status: 'community_submitted',
-    provenance: 'seed_observation',
-    confirmations_count: 1,
-    flag_count: 0,
-    created_at: '2026-10-18T09:30:00.000Z',
-    updated_at: '2026-10-18T09:30:00.000Z'
-  },
-  // Authoritative reference observations (seeds 5, 6, 7)
-  {
-    id: '5eed0000-0000-4000-8000-000000000005',
-    user_id: null,
-    voiced_location: 'J7AZ',
-    found_location: '07AZ',
-    raw_voiced_location: 'J7AZ',
-    raw_found_location: '07AZ',
-    voiced_location_norm: 'J7AZ',
-    found_location_norm: '07AZ',
-    heard_location: 'J7AZ',
-    actual_location: '07AZ',
-    heard_location_norm: 'J7AZ',
-    actual_location_norm: '07AZ',
-    reason: 'similar_sounding',
-    details: 'Voice headset recognized "JEWELLERY SEVEN ALPHA ZULU" instead of "ZERO SEVEN ALPHA ZULU".',
-    status: 'approved',
-    provenance: 'seed_observation',
-    confirmations_count: 4,
-    flag_count: 0,
-    created_at: '2026-10-18T07:00:00.000Z',
-    updated_at: '2026-10-18T07:00:00.000Z'
-  },
-  {
-    id: '5eed0000-0000-4000-8000-000000000006',
-    user_id: null,
-    voiced_location: 'S1PG',
-    found_location: '01PG',
-    raw_voiced_location: 'S1PG',
-    raw_found_location: '01PG',
-    voiced_location_norm: 'S1PG',
-    found_location_norm: '01PG',
-    heard_location: 'S1PG',
-    actual_location: '01PG',
-    heard_location_norm: 'S1PG',
-    actual_location_norm: '01PG',
-    reason: 'headset_misrecognition',
-    details: 'Spoken "SECURITY" was confused with "ZERO" in loud aisle background noise.',
-    status: 'approved',
-    provenance: 'seed_observation',
-    confirmations_count: 2,
-    flag_count: 0,
-    created_at: '2026-10-18T07:15:00.000Z',
-    updated_at: '2026-10-18T07:15:00.000Z'
-  },
-  {
-    id: '5eed0000-0000-4000-8000-000000000007',
-    user_id: null,
-    voiced_location: '10AK',
-    found_location: '10KA',
-    raw_voiced_location: '10AK',
-    raw_found_location: '10KA',
-    voiced_location_norm: '10AK',
-    found_location_norm: '10KA',
-    heard_location: '10AK',
-    actual_location: '10KA',
-    heard_location_norm: '10AK',
-    actual_location_norm: '10KA',
-    reason: 'similar_check_character',
-    details: 'Adjacent character swap produces the same check character in standard formula.',
-    status: 'approved',
-    provenance: 'seed_observation',
-    confirmations_count: 5,
-    flag_count: 0,
-    created_at: '2026-10-18T07:30:00.000Z',
-    updated_at: '2026-10-18T07:30:00.000Z'
-  }
+  ...PURE_SEED_REFERENCE_OBSERVATIONS
 ];
 
 export const SEED_OBSERVATIONS = SEED_REFERENCE_OBSERVATIONS;
@@ -1214,6 +1057,223 @@ export async function getAllActiveReports(): Promise<VoiceConfusionReport[]> {
   return localReportsStore.filter(
     r => r.status !== 'flagged' && r.status !== 'rejected' && r.status !== 'pending'
   );
+}
+
+export interface LocationReportsResult {
+  reports: VoiceConfusionReport[];
+  isTruncated: boolean;
+  isHighTrustTruncated: boolean;
+  isUnverifiedTruncated: boolean;
+}
+
+/**
+ * Exact columns required by the voice confusion engine.
+ * Selecting only these columns reduces payload size, avoids leaking user_id or
+ * internal moderator_notes, and improves query performance.
+ */
+export const ENGINE_REPORT_SELECT_COLUMNS = [
+  'id',
+  'voiced_location',
+  'found_location',
+  'voiced_location_norm',
+  'found_location_norm',
+  'reason',
+  'details',
+  'status',
+  'provenance',
+  'confirmations_count',
+  'created_at'
+].join(', ');
+
+/**
+ * Milestone 5 & Item 3: Targeted exact-location lookup for the suggestion engine.
+ *
+ * Hardening & Security Guarantees:
+ * - Validates normalized input against strict allow-list (^[A-Z0-9+/-]{2,10}$) BEFORE placing in any filter.
+ * - Parameter-safe filters: uses four indexed .eq() queries merged client-side, avoiding filter injection.
+ * - Four parallel limit+1 queries per committed input:
+ *   1. High-trust group (status: approved, confirmed), voiced direction
+ *   2. High-trust group (status: approved, confirmed), found direction
+ *   3. Community/unverified group (status: community_submitted), voiced direction
+ *   4. Community/unverified group (status: community_submitted), found direction
+ * - Per-group truncation tracking: signals isHighTrustTruncated and isUnverifiedTruncated separately.
+ * - Exact column projection: selects only engine-consumed columns (ENGINE_REPORT_SELECT_COLUMNS) instead of '*'.
+ * - Deterministic ordering: orders by created_at DESC with id ASC as a tie-breaker.
+ */
+export async function fetchLocationReports(
+  normalizedLocation: string,
+  limit: number = 50
+): Promise<LocationReportsResult> {
+  const cleanLoc = normaliseLocationCode(normalizedLocation);
+  if (!cleanLoc) {
+    return {
+      reports: [],
+      isTruncated: false,
+      isHighTrustTruncated: false,
+      isUnverifiedTruncated: false
+    };
+  }
+
+  // Input hardening: validate against strict allow-list BEFORE placing in any filter.
+  // Hostile strings are rejected immediately and never reach Supabase.
+  if (!LOCATION_FILTER_ALLOWLIST_REGEX.test(cleanLoc)) {
+    throw new Error(`Invalid location code format for reports query: "${cleanLoc}"`);
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    // Four parallel limit + 1 queries
+    const [htVoicedRes, htFoundRes, unvVoicedRes, unvFoundRes] = await Promise.all([
+      supabase
+        .from('voice_confusion_reports')
+        .select(ENGINE_REPORT_SELECT_COLUMNS)
+        .in('status', ['approved', 'confirmed'])
+        .eq('voiced_location_norm', cleanLoc)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(limit + 1),
+      supabase
+        .from('voice_confusion_reports')
+        .select(ENGINE_REPORT_SELECT_COLUMNS)
+        .in('status', ['approved', 'confirmed'])
+        .eq('found_location_norm', cleanLoc)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(limit + 1),
+      supabase
+        .from('voice_confusion_reports')
+        .select(ENGINE_REPORT_SELECT_COLUMNS)
+        .eq('status', 'community_submitted')
+        .eq('voiced_location_norm', cleanLoc)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(limit + 1),
+      supabase
+        .from('voice_confusion_reports')
+        .select(ENGINE_REPORT_SELECT_COLUMNS)
+        .eq('status', 'community_submitted')
+        .eq('found_location_norm', cleanLoc)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(limit + 1)
+    ]);
+
+    if (htVoicedRes.error) {
+      console.error('fetchLocationReports query failed (high-trust voiced):', htVoicedRes.error);
+      throw new Error(htVoicedRes.error.message || 'Database query failed (high-trust voiced)');
+    }
+    if (htFoundRes.error) {
+      console.error('fetchLocationReports query failed (high-trust found):', htFoundRes.error);
+      throw new Error(htFoundRes.error.message || 'Database query failed (high-trust found)');
+    }
+    if (unvVoicedRes.error) {
+      console.error('fetchLocationReports query failed (unverified voiced):', unvVoicedRes.error);
+      throw new Error(unvVoicedRes.error.message || 'Database query failed (unverified voiced)');
+    }
+    if (unvFoundRes.error) {
+      console.error('fetchLocationReports query failed (unverified found):', unvFoundRes.error);
+      throw new Error(unvFoundRes.error.message || 'Database query failed (unverified found)');
+    }
+
+    const htVoicedRows = ((htVoicedRes.data as unknown as VoiceConfusionReport[]) || []);
+    const htFoundRows = ((htFoundRes.data as unknown as VoiceConfusionReport[]) || []);
+    const unvVoicedRows = ((unvVoicedRes.data as unknown as VoiceConfusionReport[]) || []);
+    const unvFoundRows = ((unvFoundRes.data as unknown as VoiceConfusionReport[]) || []);
+
+    // Detect truncation per group (limit + 1 rows fetched), never from the merged length
+    const isHighTrustTruncated = htVoicedRows.length > limit || htFoundRows.length > limit;
+    const isUnverifiedTruncated = unvVoicedRows.length > limit || unvFoundRows.length > limit;
+    const isTruncated = isHighTrustTruncated || isUnverifiedTruncated;
+
+    // Take at most `limit` rows from each query if truncated
+    const htVoicedSlice = htVoicedRows.length > limit ? htVoicedRows.slice(0, limit) : htVoicedRows;
+    const htFoundSlice = htFoundRows.length > limit ? htFoundRows.slice(0, limit) : htFoundRows;
+    const unvVoicedSlice = unvVoicedRows.length > limit ? unvVoicedRows.slice(0, limit) : unvVoicedRows;
+    const unvFoundSlice = unvFoundRows.length > limit ? unvFoundRows.slice(0, limit) : unvFoundRows;
+
+    // Merge and deduplicate client-side by id
+    const reportMap = new Map<string, VoiceConfusionReport>();
+    for (const r of htVoicedSlice) {
+      reportMap.set(r.id, r);
+    }
+    for (const r of htFoundSlice) {
+      reportMap.set(r.id, r);
+    }
+    for (const r of unvVoicedSlice) {
+      reportMap.set(r.id, r);
+    }
+    for (const r of unvFoundSlice) {
+      reportMap.set(r.id, r);
+    }
+
+    // Sort deterministically: created_at DESC with id ASC as tie-breaker
+    const allData = Array.from(reportMap.values()).sort((a, b) => {
+      const timeDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return a.id.localeCompare(b.id);
+    });
+
+    return {
+      reports: allData,
+      isTruncated,
+      isHighTrustTruncated,
+      isUnverifiedTruncated
+    };
+  }
+
+  // Local fallback: includes non-flagged, non-rejected, non-pending reports
+  const htVoiced = localReportsStore.filter(r => {
+    const vNorm = normaliseLocationCode(r.voiced_location_norm || r.voiced_location || r.heard_location || '');
+    return vNorm === cleanLoc && (r.status === 'confirmed' || r.status === 'approved');
+  });
+  const htFound = localReportsStore.filter(r => {
+    const fNorm = normaliseLocationCode(r.found_location_norm || r.found_location || r.actual_location || '');
+    return fNorm === cleanLoc && (r.status === 'confirmed' || r.status === 'approved');
+  });
+  const unvVoiced = localReportsStore.filter(r => {
+    const vNorm = normaliseLocationCode(r.voiced_location_norm || r.voiced_location || r.heard_location || '');
+    return vNorm === cleanLoc && r.status === 'community_submitted';
+  });
+  const unvFound = localReportsStore.filter(r => {
+    const fNorm = normaliseLocationCode(r.found_location_norm || r.found_location || r.actual_location || '');
+    return fNorm === cleanLoc && r.status === 'community_submitted';
+  });
+
+  const isHighTrustTruncated = htVoiced.length > limit || htFound.length > limit;
+  const isUnverifiedTruncated = unvVoiced.length > limit || unvFound.length > limit;
+  const isTruncated = isHighTrustTruncated || isUnverifiedTruncated;
+
+  const htVoicedSlice = htVoiced.length > limit ? htVoiced.slice(0, limit) : htVoiced;
+  const htFoundSlice = htFound.length > limit ? htFound.slice(0, limit) : htFound;
+  const unvVoicedSlice = unvVoiced.length > limit ? unvVoiced.slice(0, limit) : unvVoiced;
+  const unvFoundSlice = unvFound.length > limit ? unvFound.slice(0, limit) : unvFound;
+
+  const reportMap = new Map<string, VoiceConfusionReport>();
+  for (const r of htVoicedSlice) {
+    reportMap.set(r.id, r);
+  }
+  for (const r of htFoundSlice) {
+    reportMap.set(r.id, r);
+  }
+  for (const r of unvVoicedSlice) {
+    reportMap.set(r.id, r);
+  }
+  for (const r of unvFoundSlice) {
+    reportMap.set(r.id, r);
+  }
+
+  // Sort deterministically: created_at DESC with id ASC tie-breaker
+  const allData = Array.from(reportMap.values()).sort((a, b) => {
+    const timeDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    return a.id.localeCompare(b.id);
+  });
+
+  return {
+    reports: allData,
+    isTruncated,
+    isHighTrustTruncated,
+    isUnverifiedTruncated
+  };
 }
 
 /**
