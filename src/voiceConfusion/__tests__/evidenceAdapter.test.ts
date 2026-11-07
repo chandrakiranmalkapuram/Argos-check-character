@@ -15,8 +15,7 @@ import {
   clearEvidenceCache,
   refreshEvidenceForLocation,
   setCachedEvidence,
-  EVIDENCE_CACHE_TTL_MS,
-  CommittedEvidenceCoordinator
+  EVIDENCE_CACHE_TTL_MS
 } from '../evidenceAdapter.ts';
 import * as serviceModule from '../service.ts';
 import type { VoiceConfusionReport, VoiceConfusionStatus, VoiceConfusionReason } from '../types.ts';
@@ -98,7 +97,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
       vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
         reports: [],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       const result = await getEvidenceSuggestions('10AK', { bypassCache: true });
@@ -107,6 +108,8 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       if (result.evidence.kind === 'available') {
         expect(result.evidence.reports).toEqual([]);
         expect(result.evidence.isTruncated).toBe(false);
+        expect(result.evidence.isHighTrustTruncated).toBe(false);
+        expect(result.evidence.isUnverifiedTruncated).toBe(false);
       }
     });
 
@@ -119,7 +122,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
 
       vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
         reports: mockReports,
-        isTruncated: true
+        isTruncated: true,
+        isHighTrustTruncated: true,
+        isUnverifiedTruncated: false
       });
 
       const result = await getEvidenceSuggestions('10AK', { limit: 10, bypassCache: true });
@@ -128,22 +133,34 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       if (result.evidence.kind === 'available') {
         expect(result.evidence.reports.length).toBe(10);
         expect(result.evidence.isTruncated).toBe(true);
+        expect(result.evidence.isHighTrustTruncated).toBe(true);
+        expect(result.evidence.isUnverifiedTruncated).toBe(false);
       }
     });
 
-    it('detects truncation per query when one query is truncated (limit + 1 rows) and the other is not', async () => {
-      // Mock Supabase returning 51 rows for voiced query (truncated for limit 50) and 10 rows for found query
-      const voicedRows = Array.from({ length: 51 }, (_, i) =>
-        baseReport({ id: `voiced-${i}`, voiced_location: '10AK', found_location: `10D${i}` })
+    it('detects truncation when high-trust group is truncated while community group is not', async () => {
+      // 4 queries: htVoiced (51 rows -> truncated), htFound (10 rows), unvVoiced (10 rows), unvFound (10 rows)
+      const htVoicedRows = Array.from({ length: 51 }, (_, i) =>
+        baseReport({ id: `ht-v-${i}`, status: 'approved', voiced_location: '10AK', found_location: `10D${i}` })
       );
-      const foundRows = Array.from({ length: 10 }, (_, i) =>
-        baseReport({ id: `found-${i}`, voiced_location: `10E${i}`, found_location: '10AK' })
+      const htFoundRows = Array.from({ length: 10 }, (_, i) =>
+        baseReport({ id: `ht-f-${i}`, status: 'confirmed', voiced_location: `10E${i}`, found_location: '10AK' })
+      );
+      const unvVoicedRows = Array.from({ length: 10 }, (_, i) =>
+        baseReport({ id: `unv-v-${i}`, status: 'community_submitted', voiced_location: '10AK', found_location: `10F${i}` })
+      );
+      const unvFoundRows = Array.from({ length: 10 }, (_, i) =>
+        baseReport({ id: `unv-f-${i}`, status: 'community_submitted', voiced_location: `10G${i}`, found_location: '10AK' })
       );
 
       let callCount = 0;
       mockSupabaseFrom.mockImplementation(() => {
         callCount++;
-        const currentData = callCount % 2 === 1 ? voicedRows : foundRows;
+        let currentData = unvFoundRows;
+        if (callCount % 4 === 1) currentData = htVoicedRows;
+        else if (callCount % 4 === 2) currentData = htFoundRows;
+        else if (callCount % 4 === 3) currentData = unvVoicedRows;
+
         const builder: Record<string, unknown> = {};
         builder.select = vi.fn().mockReturnValue(builder);
         builder.in = vi.fn().mockReturnValue(builder);
@@ -154,24 +171,36 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       });
 
       const res = await serviceModule.fetchLocationReports('10AK', 50);
+      expect(res.isHighTrustTruncated).toBe(true);
+      expect(res.isUnverifiedTruncated).toBe(false);
       expect(res.isTruncated).toBe(true);
-      // Slices voiced to 50, keeps all 10 found -> 60 total reports
-      expect(res.reports.length).toBe(60);
+      // Slices htVoiced to 50, keeps all others -> 50 + 10 + 10 + 10 = 80 total reports
+      expect(res.reports.length).toBe(80);
     });
 
-    it('does NOT flag incomplete when both queries are under the limit with a merged total above 50', async () => {
-      // Both queries are under limit 50 (30 rows each, 60 distinct rows merged > 50)
-      const voicedRows = Array.from({ length: 30 }, (_, i) =>
-        baseReport({ id: `voiced-${i}`, voiced_location: '10AK', found_location: `10D${i}` })
+    it('detects truncation when community group is truncated while high-trust group is not', async () => {
+      // 4 queries: htVoiced (10 rows), htFound (10 rows), unvVoiced (51 rows -> truncated), unvFound (10 rows)
+      const htVoicedRows = Array.from({ length: 10 }, (_, i) =>
+        baseReport({ id: `ht-v-${i}`, status: 'approved', voiced_location: '10AK', found_location: `10D${i}` })
       );
-      const foundRows = Array.from({ length: 30 }, (_, i) =>
-        baseReport({ id: `found-${i}`, voiced_location: `10E${i}`, found_location: '10AK' })
+      const htFoundRows = Array.from({ length: 10 }, (_, i) =>
+        baseReport({ id: `ht-f-${i}`, status: 'confirmed', voiced_location: `10E${i}`, found_location: '10AK' })
+      );
+      const unvVoicedRows = Array.from({ length: 51 }, (_, i) =>
+        baseReport({ id: `unv-v-${i}`, status: 'community_submitted', voiced_location: '10AK', found_location: `10F${i}` })
+      );
+      const unvFoundRows = Array.from({ length: 10 }, (_, i) =>
+        baseReport({ id: `unv-f-${i}`, status: 'community_submitted', voiced_location: `10G${i}`, found_location: '10AK' })
       );
 
       let callCount = 0;
       mockSupabaseFrom.mockImplementation(() => {
         callCount++;
-        const currentData = callCount % 2 === 1 ? voicedRows : foundRows;
+        let currentData = unvFoundRows;
+        if (callCount % 4 === 1) currentData = htVoicedRows;
+        else if (callCount % 4 === 2) currentData = htFoundRows;
+        else if (callCount % 4 === 3) currentData = unvVoicedRows;
+
         const builder: Record<string, unknown> = {};
         builder.select = vi.fn().mockReturnValue(builder);
         builder.in = vi.fn().mockReturnValue(builder);
@@ -182,9 +211,50 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       });
 
       const res = await serviceModule.fetchLocationReports('10AK', 50);
-      // Must NOT be flagged incomplete because neither query exceeded the limit!
+      expect(res.isHighTrustTruncated).toBe(false);
+      expect(res.isUnverifiedTruncated).toBe(true);
+      expect(res.isTruncated).toBe(true);
+      // Slices unvVoiced to 50, keeps all others -> 10 + 10 + 50 + 10 = 80 total reports
+      expect(res.reports.length).toBe(80);
+    });
+
+    it('does NOT flag incomplete when both groups are under the limit with a merged total above 50', async () => {
+      // 4 queries with 20 rows each = 80 distinct rows merged > 50, but each query is <= 50
+      const htVoicedRows = Array.from({ length: 20 }, (_, i) =>
+        baseReport({ id: `ht-v-${i}`, status: 'approved', voiced_location: '10AK', found_location: `10D${i}` })
+      );
+      const htFoundRows = Array.from({ length: 20 }, (_, i) =>
+        baseReport({ id: `ht-f-${i}`, status: 'confirmed', voiced_location: `10E${i}`, found_location: '10AK' })
+      );
+      const unvVoicedRows = Array.from({ length: 20 }, (_, i) =>
+        baseReport({ id: `unv-v-${i}`, status: 'community_submitted', voiced_location: '10AK', found_location: `10F${i}` })
+      );
+      const unvFoundRows = Array.from({ length: 20 }, (_, i) =>
+        baseReport({ id: `unv-f-${i}`, status: 'community_submitted', voiced_location: `10G${i}`, found_location: '10AK' })
+      );
+
+      let callCount = 0;
+      mockSupabaseFrom.mockImplementation(() => {
+        callCount++;
+        let currentData = unvFoundRows;
+        if (callCount % 4 === 1) currentData = htVoicedRows;
+        else if (callCount % 4 === 2) currentData = htFoundRows;
+        else if (callCount % 4 === 3) currentData = unvVoicedRows;
+
+        const builder: Record<string, unknown> = {};
+        builder.select = vi.fn().mockReturnValue(builder);
+        builder.in = vi.fn().mockReturnValue(builder);
+        builder.eq = vi.fn().mockReturnValue(builder);
+        builder.order = vi.fn().mockReturnValue(builder);
+        builder.limit = vi.fn().mockResolvedValue({ data: currentData, error: null });
+        return builder;
+      });
+
+      const res = await serviceModule.fetchLocationReports('10AK', 50);
+      expect(res.isHighTrustTruncated).toBe(false);
+      expect(res.isUnverifiedTruncated).toBe(false);
       expect(res.isTruncated).toBe(false);
-      expect(res.reports.length).toBe(60);
+      expect(res.reports.length).toBe(80);
     });
   });
 
@@ -211,7 +281,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
 
         vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
           reports: [rep],
-          isTruncated: false
+          isTruncated: false,
+          isHighTrustTruncated: false,
+          isUnverifiedTruncated: false
         });
 
         const result = await getEvidenceSuggestions('10AK', { bypassCache: true });
@@ -236,7 +308,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
 
       vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
         reports: [seedRep],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       const result = await getEvidenceSuggestions('10AK', { bypassCache: true });
@@ -277,7 +351,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
 
         vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
           reports: [rep],
-          isTruncated: false
+          isTruncated: false,
+          isHighTrustTruncated: false,
+          isUnverifiedTruncated: false
         });
 
         const result = await getEvidenceSuggestions('10AK', { bypassCache: true });
@@ -311,7 +387,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       // Forward query: user entered 10AK
       vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
         reports: [fwdRep],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       const fwdResult = await getEvidenceSuggestions('10AK', { bypassCache: true });
@@ -346,7 +424,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
 
       vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
         reports: [diffRep],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       const result = await getEvidenceSuggestions('10AK', { bypassCache: true });
@@ -370,7 +450,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
       const fetchSpy = vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
         reports: [baseReport()],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       // Call 1
@@ -383,34 +465,14 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       expect(cached.kind).toBe('available');
     });
 
-    it('coordinator debounces calls and ignores stale in-flight responses', async () => {
-      vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
-
-      const coordinator = new CommittedEvidenceCoordinator();
-      const results: string[] = [];
-
-      // Fast typing simulation: '1', '10', '10A', '10AK'
-      // scheduleFetch cancels previous timers
-      coordinator.scheduleFetch('10A', res => {
-        results.push(res.suggestionResult.inputLocation);
-      }, 50);
-
-      coordinator.scheduleFetch('10AK', res => {
-        results.push(res.suggestionResult.inputLocation);
-      }, 50);
-
-      // Wait for debounce timer to fire
-      await new Promise(r => setTimeout(r, 80));
-
-      // Only the last committed request ('10AK') should have completed
-      expect(results).toEqual(['10AK']);
-    });
 
     it('expires cached evidence after 5 minutes (TTL = 300,000 ms)', async () => {
       vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
       const fetchSpy = vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
         reports: [baseReport()],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       // Populate cache at time T0
@@ -419,7 +481,17 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
 
       // Expire cache manually (simulate 5 minutes + 1 second elapsed)
       const expiredTimestamp = Date.now() - (EVIDENCE_CACHE_TTL_MS + 1000);
-      setCachedEvidence('10AK', { kind: 'available', reports: [baseReport()], isTruncated: false }, expiredTimestamp);
+      setCachedEvidence(
+        '10AK',
+        {
+          kind: 'available',
+          reports: [baseReport()],
+          isTruncated: false,
+          isHighTrustTruncated: false,
+          isUnverifiedTruncated: false
+        },
+        expiredTimestamp
+      );
 
       // Next call must detect expired entry and refetch
       await fetchEvidenceForLocation('10AK');
@@ -430,7 +502,9 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
       const fetchSpy = vi.spyOn(serviceModule, 'fetchLocationReports').mockResolvedValue({
         reports: [baseReport()],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       await fetchEvidenceForLocation('10AK');
@@ -442,41 +516,7 @@ describe('Milestone 5: Read-Only Evidence Adapter', () => {
       expect(refreshed.kind).toBe('available');
     });
 
-    it('ignores stale in-flight response when committed input has changed while request was in flight', async () => {
-      vi.spyOn(serviceModule, 'isPersistenceConfigured').mockReturnValue(true);
 
-      const coordinator = new CommittedEvidenceCoordinator();
-      const results: string[] = [];
-
-      // Mock fetchLocationReports with variable delays
-      vi.spyOn(serviceModule, 'fetchLocationReports').mockImplementation(async (loc: string) => {
-        if (loc === '10AK') {
-          // Slow response: 80ms
-          await new Promise(r => setTimeout(r, 80));
-          return { reports: [baseReport({ voiced_location: '10AK' })], isTruncated: false };
-        } else {
-          // Fast response: 10ms
-          await new Promise(r => setTimeout(r, 10));
-          return { reports: [baseReport({ voiced_location: '21EZ', found_location: '11BZ' })], isTruncated: false };
-        }
-      });
-
-      // Commit 1st input '10AK' (slow, in flight)
-      const p1 = coordinator.commitInput('10AK', res => {
-        results.push(`P1:${res.suggestionResult.inputLocation}`);
-      }, { bypassCache: true });
-
-      // Immediate commit of 2nd input '21EZ' (fast)
-      const p2 = coordinator.commitInput('21EZ', res => {
-        results.push(`P2:${res.suggestionResult.inputLocation}`);
-      }, { bypassCache: true });
-
-      await Promise.all([p1, p2]);
-
-      // Only the 2nd committed input '21EZ' must have delivered its callback.
-      // The 1st in-flight response ('10AK') finished later and was strictly ignored!
-      expect(results).toEqual(['P2:21EZ']);
-    });
   });
 
   describe('8. Input Hardening: Hostile String Rejection (Security & PostgREST Safety)', () => {

@@ -1767,6 +1767,34 @@ body {
 .vc-btn--ghost:hover {
   background: var(--blue-50);
 }
+.vc-reporter-note-disclosure {
+  margin-top: 0.5rem;
+  border-top: 1px dashed var(--slate-200);
+  padding-top: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.vc-reporter-note-summary {
+  cursor: pointer;
+  color: var(--slate-600);
+  font-weight: 500;
+  user-select: none;
+}
+
+.vc-reporter-note-summary:hover {
+  color: var(--navy-800);
+}
+
+.vc-reporter-note-text {
+  margin: 0.25rem 0 0 0;
+  padding: 0.4rem 0.6rem;
+  background: var(--slate-50);
+  border-left: 2px solid var(--slate-300);
+  color: var(--slate-700);
+  font-size: 0.75rem;
+  font-style: italic;
+  word-break: break-word;
+}
 
 @media (max-width: 480px) {
   .vc-panel {

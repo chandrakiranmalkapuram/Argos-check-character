@@ -221,7 +221,13 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <span className="vc-alert-text">results may be incomplete</span>
+          <span className="vc-alert-text">
+            {evidence.isHighTrustTruncated && evidence.isUnverifiedTruncated
+              ? 'results may be incomplete: some approved reports and older unverified reports are not shown'
+              : evidence.isHighTrustTruncated
+              ? 'results may be incomplete: some approved reports may be missing'
+              : 'results may be incomplete: some older unverified reports are not shown'}
+          </span>
         </div>
       )}
 
@@ -291,7 +297,7 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
             role="button"
             tabIndex={0}
             aria-expanded={isPossibleOpen}
-            aria-label={`Possible matches, ${possibleMatches.length} candidates available`}
+            aria-label={`Possible sound-alikes, ${possibleMatches.length} candidates available`}
             onClick={(e) => {
               e.preventDefault();
               setIsPossibleOpen(prev => !prev);
@@ -304,7 +310,7 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
             }}
           >
             <span className="vc-disclosure-title">
-              Possible matches ({possibleMatches.length})
+              Possible sound-alikes ({possibleMatches.length})
             </span>
             <svg className="vc-disclosure-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
               <polyline points="6 9 12 15 18 9" />
@@ -479,8 +485,13 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
                     </span>
                   </div>
                   <p className="vc-diff-check-explanation">{diff.explanation}</p>
-                  {diff.details && (
-                    <p className="vc-diff-check-details">Details: &ldquo;{diff.details}&rdquo;</p>
+                  {diff.provenance !== 'seed_observation' && diff.details && (
+                    <details className="vc-reporter-note-disclosure">
+                      <summary className="vc-reporter-note-summary">
+                        Reporter&apos;s note (free text, unverified)
+                      </summary>
+                      <p className="vc-reporter-note-text">{diff.details.slice(0, 200)}</p>
+                    </details>
                   )}
                 </article>
               ))}
@@ -587,8 +598,13 @@ const ReportedPairCard: React.FC<ReportedPairCardProps> = ({
         <span className="vc-spoken-text">&ldquo;{pair.spokenText}&rdquo;</span>
       </div>
 
-      {pair.details && (
-        <p className="vc-candidate-details">Details: &ldquo;{pair.details}&rdquo;</p>
+      {pair.provenance !== 'seed_observation' && pair.details && (
+        <details className="vc-reporter-note-disclosure">
+          <summary className="vc-reporter-note-summary">
+            Reporter&apos;s note (free text, unverified)
+          </summary>
+          <p className="vc-reporter-note-text">{pair.details.slice(0, 200)}</p>
+        </details>
       )}
     </article>
   );
@@ -755,20 +771,22 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
         >
           Model details (model assessment, not a probability)
         </summary>
-        <div className="vc-model-details-content">
-          <p className="vc-model-distances">
-            Mean distance: {candidate.meanDistance.toFixed(4)} | Total distance: {candidate.totalDistance.toFixed(4)}
-          </p>
-          <ul className="vc-model-alignment-list">
-            {candidate.alignment.map((slot, idx) => (
-              <li key={idx}>
-                Slot {idx + 1}: &ldquo;{slot.tokenA ?? '(gap)'}&rdquo; vs &ldquo;{slot.tokenB ?? '(gap)'}&rdquo;
-                &mdash; acoustic distance: {slot.distance.toFixed(4)} ({slot.distance === 0 ? 'identical' : slot.distance <= 0.55 ? 'close' : 'far'})
-              </li>
-            ))}
-          </ul>
-          <p className="vc-model-plain-explanation">{candidate.explanation}</p>
-        </div>
+        {isModelDetailsOpen && (
+          <div className="vc-model-details-content">
+            <p className="vc-model-distances">
+              Mean distance: {candidate.meanDistance.toFixed(4)} | Total distance: {candidate.totalDistance.toFixed(4)}
+            </p>
+            <ul className="vc-model-alignment-list">
+              {candidate.alignment.map((slot, idx) => (
+                <li key={idx}>
+                  Slot {idx + 1}: &ldquo;{slot.tokenA ?? '(gap)'}&rdquo; vs &ldquo;{slot.tokenB ?? '(gap)'}&rdquo;
+                  &mdash; acoustic distance: {slot.distance.toFixed(4)} ({slot.distance === 0 ? 'identical' : slot.distance <= 0.55 ? 'close' : 'far'})
+                </li>
+              ))}
+            </ul>
+            <p className="vc-model-plain-explanation">{candidate.explanation}</p>
+          </div>
+        )}
       </details>
     </article>
   );

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { VoiceConfusionPanel } from '../VoiceConfusionPanel.tsx';
 import * as adapterModule from '../../voiceConfusion/evidenceAdapter.ts';
+import * as engineModule from '../../logic/voiceConfusion/engine.ts';
 import type { VoiceConfusionReport } from '../../voiceConfusion/types.ts';
 
 describe('Milestone 6: VoiceConfusionPanel Component', () => {
@@ -92,13 +93,15 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [baseReport()],
-        isTruncated: true
+        isTruncated: true,
+        isHighTrustTruncated: true,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
 
       await waitFor(() => {
-        expect(screen.getByText('results may be incomplete')).toBeTruthy();
+        expect(screen.getByText(/results may be incomplete: some approved reports may be missing/)).toBeTruthy();
       });
     });
 
@@ -121,7 +124,13 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       expect(screen.getByText(/Loading community evidence/i)).toBeTruthy();
 
       // Resolve the evidence fetch
-      resolvePromise({ kind: 'available', reports: [], isTruncated: false });
+      resolvePromise({
+        kind: 'available',
+        reports: [],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
 
       await waitFor(() => {
         expect(screen.queryByText(/Loading community evidence/i)).toBeNull();
@@ -143,7 +152,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
             status: 'confirmed'
           })
         ],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
@@ -184,7 +195,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
             confirmations_count: 4
           })
         ],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="J7AZ" debounceMs={0} />);
@@ -200,6 +213,63 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       expect(screen.getAllByText(/Check character: YANKEE \(same check character\)/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/possible code, not verified to exist in your store/).length).toBeGreaterThan(0);
     });
+
+    it('enforces Decision D14: suppresses details for seed observations, and renders 200-char truncated plain text for other reports inside collapsed disclosure', async () => {
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [
+          // 1. Seed observation with details containing whole-number words ("twenty", "eighty-one")
+          baseReport({
+            id: 'rep-seed-details',
+            voiced_location: '08MN',
+            found_location: '20AN',
+            provenance: 'seed_observation',
+            status: 'approved',
+            details: 'Spoken "zero-eight" acoustically confused with "twenty" over radio.'
+          }),
+          // 2. Community report with user free text
+          baseReport({
+            id: 'rep-community-details',
+            voiced_location: '10AK',
+            found_location: '10DD',
+            provenance: 'moderator_confirmed',
+            status: 'approved',
+            details: 'High background noise in aisle near refrigeration unit caused acoustic misrecognition. ' + 'X'.repeat(250)
+          })
+        ],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      // Render 10AK (community report with free text)
+      render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Reported pairs/)).toBeTruthy();
+      });
+
+      // Labelled disclosure exists
+      const noteSummary = screen.getByText("Reporter's note (free text, unverified)");
+      expect(noteSummary).toBeTruthy();
+
+      // Free text is truncated to 200 chars max
+      const noteText = screen.getByText(/High background noise in aisle near refrigeration unit/);
+      expect(noteText.textContent?.length).toBeLessThanOrEqual(200);
+
+      cleanup();
+
+      // Render 08MN (seed observation)
+      render(<VoiceConfusionPanel currentLocation="08MN" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Reported pairs/)).toBeTruthy();
+      });
+
+      // Seed observation details must NOT be rendered anywhere
+      expect(screen.queryByText(/acoustically confused with "twenty"/)).toBeNull();
+      expect(screen.queryByText("Reporter's note (free text, unverified)")).toBeNull();
+    });
   });
 
   describe('5. Row Rendering: Token-by-Token Alignment, Verbal Relations, No Fake Scores', () => {
@@ -207,7 +277,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
@@ -234,19 +306,15 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       // Model details disclosure exists with exact required label
       const modelDetailsSummaries = screen.getAllByText('Model details (model assessment, not a probability)');
       expect(modelDetailsSummaries.length).toBeGreaterThan(0);
-
-      // No percentages or arbitrary scores in rendered text by default
-      const panel = screen.getByRole('region', { name: /Voice Confusion Risk Analysis/i });
-      expect(panel.textContent).not.toContain('%');
-      expect(panel.textContent).not.toMatch(/\d+%/);
-      expect(panel.textContent).not.toMatch(/score:\s*\d+/i);
     });
 
-    it('strictly avoids whole-number words for aisles across rendered text (Invariant I6 digit-by-digit)', async () => {
+    it('strictly avoids whole-number words across all application-generated text (Invariant I6 digit-by-digit)', async () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
@@ -263,6 +331,17 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       expect(text).toContain('ZERO');
       expect(text).not.toContain('TEN ALPHA KILO');
       expect(text).not.toContain('AISLE TEN');
+
+      // Comprehensive list of whole-number words must not appear in application text
+      const wholeNumbers = [
+        'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+        'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty', 'forty',
+        'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'hundred', 'ten'
+      ];
+      for (const num of wholeNumbers) {
+        const regex = new RegExp(`\\b${num}\\b`, 'i');
+        expect(text).not.toMatch(regex);
+      }
     });
   });
 
@@ -272,7 +351,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="99ZZ" debounceMs={0} />);
@@ -288,7 +369,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="CA01" debounceMs={0} />);
@@ -301,12 +384,43 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
     });
   });
 
-  describe('7. Arithmetic Pool: 21EZ with 11BZ Visible ONLY in Arithmetic Pool', () => {
-    it('shows 11BZ for input 21EZ ONLY when arithmetic pool disclosure is opened, never in Tiers 1-3', async () => {
+  describe('7. Arithmetic Pool: Lazy Computation, Pagination, and Text Filter', () => {
+    it('performs arithmetic pool lazy computation: engine is not asked for the pool until the disclosure opens', async () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      const suggestSpy = vi.spyOn(engineModule, 'suggestConfusions');
+
+      render(<VoiceConfusionPanel currentLocation="21EZ" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Close sound-alikes')).toBeTruthy();
+      });
+
+      // Initial engine call has includeArithmeticCollisions: false
+      expect(suggestSpy).toHaveBeenCalledWith('21EZ', expect.objectContaining({ includeArithmeticCollisions: false }));
+      expect(suggestSpy).not.toHaveBeenCalledWith('21EZ', expect.objectContaining({ includeArithmeticCollisions: true }));
+
+      // Open the disclosure
+      const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
+      fireEvent.click(poolSummary);
+
+      // Now the engine is invoked for the arithmetic pool
+      expect(suggestSpy).toHaveBeenCalledWith('21EZ', expect.objectContaining({ includeArithmeticCollisions: true }));
+    });
+
+    it('paginates arithmetic pool at 50 codes per page with next and previous controls', async () => {
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="21EZ" debounceMs={0} />);
@@ -315,22 +429,64 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
         expect(screen.getByText('Close sound-alikes')).toBeTruthy();
       });
 
-      // 1. In Tiers 1-3 (Close sound-alikes), 11BZ is NOT visible
-      expect(screen.queryByText('11BZ')).toBeNull();
-
-      // 2. Open the arithmetic pool disclosure
+      // Open disclosure
       const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
-      expect(poolSummary).toBeTruthy();
       fireEvent.click(poolSummary);
 
-      // 3. Filter for 11BZ in the arithmetic pool filter input
+      // Verify Page 1
+      expect(screen.getByText(/Showing 1–50 of \d+ codes/)).toBeTruthy();
+      expect(screen.getByText(/Page 1 of \d+/)).toBeTruthy();
+
+      // Click Next
+      const nextBtn = screen.getByRole('button', { name: /Next page/i });
+      fireEvent.click(nextBtn);
+
+      // Verify Page 2
+      expect(screen.getByText(/Showing 51–100 of \d+ codes/)).toBeTruthy();
+      expect(screen.getByText(/Page 2 of \d+/)).toBeTruthy();
+
+      // Click Previous
+      const prevBtn = screen.getByRole('button', { name: /Previous page/i });
+      fireEvent.click(prevBtn);
+
+      // Verify return to Page 1
+      expect(screen.getByText(/Showing 1–50 of \d+ codes/)).toBeTruthy();
+      expect(screen.getByText(/Page 1 of \d+/)).toBeTruthy();
+    });
+
+    it('filters arithmetic pool by text and provides a clear button', async () => {
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      render(<VoiceConfusionPanel currentLocation="21EZ" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Close sound-alikes')).toBeTruthy();
+      });
+
+      // Open disclosure
+      const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
+      fireEvent.click(poolSummary);
+
+      // Type filter for '11BZ'
       const filterInput = screen.getByLabelText('Filter same-check codes');
       fireEvent.change(filterInput, { target: { value: '11BZ' } });
 
-      // 4. Now 11BZ is visible inside the arithmetic pool!
+      // Only 11BZ matched
+      expect(screen.getByText(/Showing 1–1 of 1 codes/)).toBeTruthy();
       expect(screen.getByText('11BZ')).toBeTruthy();
-      expect(screen.getAllByText(/Check character: UNIFORM \(same check character\)/).length).toBeGreaterThan(0);
-      expect(screen.getByText('Arithmetic pool')).toBeTruthy();
+
+      // Click Clear button
+      const clearBtn = screen.getByRole('button', { name: /Clear filter/i });
+      fireEvent.click(clearBtn);
+
+      // Filter cleared
+      expect(screen.getByText(/Showing 1–50 of \d+ codes/)).toBeTruthy();
     });
   });
 
@@ -339,7 +495,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [],
-        isTruncated: false
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
       });
 
       render(<VoiceConfusionPanel currentLocation="21EZ" debounceMs={0} />);
@@ -359,6 +517,136 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       // Operate with Space key to collapse
       fireEvent.keyDown(poolSummary, { key: ' ', code: 'Space' });
       expect(poolSummary.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('shows Tier 3 collapsed count in Possible sound-alikes disclosure summary', async () => {
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Close sound-alikes')).toBeTruthy();
+      });
+
+      // Summary displays count of possible sound-alikes
+      expect(screen.getByText(/Possible sound-alikes \(\d+\)/)).toBeTruthy();
+    });
+  });
+
+  describe('9. Different-Check Section Copy & Isolation', () => {
+    it('displays exact different-check explanatory copy when reports with differing check character exist', async () => {
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Reported confusions with a different check character/)).toBeTruthy();
+      });
+
+      // Open different-check disclosure
+      const diffSummary = screen.getByText(/Reported confusions with a different check character/);
+      fireEvent.click(diffSummary);
+
+      // Exact explanatory copy
+      expect(
+        screen.getByText(
+          "Reported location 10KA has check character 'BRAVO' while 10AK has 'NOVEMBER'. The discrepancy would normally be rejected by the check-character step."
+        )
+      ).toBeTruthy();
+    });
+  });
+
+  describe('10. Model Details Disclosure: Numeric Distances Kept Strictly Inside', () => {
+    it('contains no "%" or numeric decimal distances in default view, with distances visible only when "Model details" is opened', async () => {
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('10DD')).toBeTruthy();
+      });
+
+      const panel = screen.getByRole('region', { name: /Voice Confusion Risk Analysis/i });
+
+      // No percentage symbol
+      expect(panel.textContent).not.toContain('%');
+
+      // No score text
+      expect(panel.textContent).not.toMatch(/score:\s*\d+/i);
+
+      // In default view, numeric decimal distances (e.g. 0.40) are NOT visible
+      expect(screen.queryByText(/model assessment:\s*0\.\d{2}/i)).toBeNull();
+
+      // Open "Model details" disclosure
+      const modelDetailsSummary = screen.getAllByText('Model details (model assessment, not a probability)')[0];
+      fireEvent.click(modelDetailsSummary);
+
+      // Now the numeric distance is visible inside the disclosure
+      expect(screen.getByText(/model assessment:\s*0\.\d{2}/i)).toBeTruthy();
+    });
+  });
+
+  describe('11. Stale In-Flight Request Coordinator', () => {
+    it('ignores late response when committed input changes while fetch is in flight', async () => {
+      let resolve10AK!: (res: adapterModule.EvidenceResult) => void;
+      const p10AK = new Promise<adapterModule.EvidenceResult>(resolve => {
+        resolve10AK = resolve;
+      });
+
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockImplementation(async (loc: string) => {
+        if (loc === '10AK') {
+          return p10AK;
+        }
+        return {
+          kind: 'available',
+          reports: [],
+          isTruncated: false,
+          isHighTrustTruncated: false,
+          isUnverifiedTruncated: false
+        };
+      });
+
+      const { rerender } = render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
+
+      // While 10AK fetch is in-flight, input changes to 21EZ
+      rerender(<VoiceConfusionPanel currentLocation="21EZ" debounceMs={0} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('21DK')).toBeTruthy();
+      });
+
+      // Now 10AK's delayed promise resolves with 10DD as an approved report
+      resolve10AK({
+        kind: 'available',
+        reports: [baseReport({ voiced_location: '10AK', found_location: '10DD', status: 'approved' })],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      await new Promise(r => setTimeout(r, 20));
+
+      // Panel must stay on 21EZ results; 10DD from 10AK must be strictly ignored
+      expect(screen.getByText('21DK')).toBeTruthy();
+      expect(screen.queryByText('10DD')).toBeNull();
     });
   });
 });

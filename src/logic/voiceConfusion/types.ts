@@ -82,6 +82,7 @@ export interface DifferentCheckReport {
   reportedLocation: string;
   reportedCheckChar: string;
   reportCount: number;
+  provenance?: ReportProvenance;
   details?: string;
   explanation: string;
 }

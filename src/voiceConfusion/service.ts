@@ -1062,11 +1062,10 @@ export async function getAllActiveReports(): Promise<VoiceConfusionReport[]> {
 export interface LocationReportsResult {
   reports: VoiceConfusionReport[];
   isTruncated: boolean;
+  isHighTrustTruncated: boolean;
+  isUnverifiedTruncated: boolean;
 }
 
-/**
- * Targeted read-only query for reports where voiced or found location equals the normalised input.
- *
 /**
  * Exact columns required by the voice confusion engine.
  * Selecting only these columns reduces payload size, avoids leaking user_id or
@@ -1087,15 +1086,19 @@ export const ENGINE_REPORT_SELECT_COLUMNS = [
 ].join(', ');
 
 /**
- * Milestone 5: Targeted exact-location lookup for the suggestion engine.
+ * Milestone 5 & Item 3: Targeted exact-location lookup for the suggestion engine.
  *
  * Hardening & Security Guarantees:
  * - Validates normalized input against strict allow-list (^[A-Z0-9+/-]{2,10}$) BEFORE placing in any filter.
- * - Parameter-safe filters: uses two indexed .eq() queries on voiced_location_norm and found_location_norm
- *   merged client-side, avoiding filter injection.
+ * - Parameter-safe filters: uses four indexed .eq() queries merged client-side, avoiding filter injection.
+ * - Four parallel limit+1 queries per committed input:
+ *   1. High-trust group (status: approved, confirmed), voiced direction
+ *   2. High-trust group (status: approved, confirmed), found direction
+ *   3. Community/unverified group (status: community_submitted), voiced direction
+ *   4. Community/unverified group (status: community_submitted), found direction
+ * - Per-group truncation tracking: signals isHighTrustTruncated and isUnverifiedTruncated separately.
  * - Exact column projection: selects only engine-consumed columns (ENGINE_REPORT_SELECT_COLUMNS) instead of '*'.
  * - Deterministic ordering: orders by created_at DESC with id ASC as a tie-breaker.
- * - Explicit limit bounded to prevent unbounded reads; detects truncation when rows exceed limit.
  */
 export async function fetchLocationReports(
   normalizedLocation: string,
@@ -1103,7 +1106,12 @@ export async function fetchLocationReports(
 ): Promise<LocationReportsResult> {
   const cleanLoc = normaliseLocationCode(normalizedLocation);
   if (!cleanLoc) {
-    return { reports: [], isTruncated: false };
+    return {
+      reports: [],
+      isTruncated: false,
+      isHighTrustTruncated: false,
+      isUnverifiedTruncated: false
+    };
   }
 
   // Input hardening: validate against strict allow-list BEFORE placing in any filter.
@@ -1113,15 +1121,12 @@ export async function fetchLocationReports(
   }
 
   if (isSupabaseConfigured && supabase) {
-    // Parameter-safe queries using two .eq() filters merged client-side.
-    // Each query targets a single-column index (idx_voice_confusion_voiced_norm
-    // or idx_voice_confusion_found_norm) with parameterized equality.
-    // Fetches limit + 1 to detect per-query truncation.
-    const [voicedRes, foundRes] = await Promise.all([
+    // Four parallel limit + 1 queries
+    const [htVoicedRes, htFoundRes, unvVoicedRes, unvFoundRes] = await Promise.all([
       supabase
         .from('voice_confusion_reports')
         .select(ENGINE_REPORT_SELECT_COLUMNS)
-        .in('status', ['community_submitted', 'confirmed', 'approved'])
+        .in('status', ['approved', 'confirmed'])
         .eq('voiced_location_norm', cleanLoc)
         .order('created_at', { ascending: false })
         .order('id', { ascending: true })
@@ -1129,40 +1134,74 @@ export async function fetchLocationReports(
       supabase
         .from('voice_confusion_reports')
         .select(ENGINE_REPORT_SELECT_COLUMNS)
-        .in('status', ['community_submitted', 'confirmed', 'approved'])
+        .in('status', ['approved', 'confirmed'])
+        .eq('found_location_norm', cleanLoc)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(limit + 1),
+      supabase
+        .from('voice_confusion_reports')
+        .select(ENGINE_REPORT_SELECT_COLUMNS)
+        .eq('status', 'community_submitted')
+        .eq('voiced_location_norm', cleanLoc)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(limit + 1),
+      supabase
+        .from('voice_confusion_reports')
+        .select(ENGINE_REPORT_SELECT_COLUMNS)
+        .eq('status', 'community_submitted')
         .eq('found_location_norm', cleanLoc)
         .order('created_at', { ascending: false })
         .order('id', { ascending: true })
         .limit(limit + 1)
     ]);
 
-    if (voicedRes.error) {
-      console.error('fetchLocationReports query failed (voiced):', voicedRes.error);
-      throw new Error(voicedRes.error.message || 'Database query failed');
+    if (htVoicedRes.error) {
+      console.error('fetchLocationReports query failed (high-trust voiced):', htVoicedRes.error);
+      throw new Error(htVoicedRes.error.message || 'Database query failed (high-trust voiced)');
     }
-    if (foundRes.error) {
-      console.error('fetchLocationReports query failed (found):', foundRes.error);
-      throw new Error(foundRes.error.message || 'Database query failed');
+    if (htFoundRes.error) {
+      console.error('fetchLocationReports query failed (high-trust found):', htFoundRes.error);
+      throw new Error(htFoundRes.error.message || 'Database query failed (high-trust found)');
+    }
+    if (unvVoicedRes.error) {
+      console.error('fetchLocationReports query failed (unverified voiced):', unvVoicedRes.error);
+      throw new Error(unvVoicedRes.error.message || 'Database query failed (unverified voiced)');
+    }
+    if (unvFoundRes.error) {
+      console.error('fetchLocationReports query failed (unverified found):', unvFoundRes.error);
+      throw new Error(unvFoundRes.error.message || 'Database query failed (unverified found)');
     }
 
-    const voicedRows = ((voicedRes.data as unknown as VoiceConfusionReport[]) || []);
-    const foundRows = ((foundRes.data as unknown as VoiceConfusionReport[]) || []);
+    const htVoicedRows = ((htVoicedRes.data as unknown as VoiceConfusionReport[]) || []);
+    const htFoundRows = ((htFoundRes.data as unknown as VoiceConfusionReport[]) || []);
+    const unvVoicedRows = ((unvVoicedRes.data as unknown as VoiceConfusionReport[]) || []);
+    const unvFoundRows = ((unvFoundRes.data as unknown as VoiceConfusionReport[]) || []);
 
-    // Detect truncation per query (limit + 1 rows fetched), never from the merged length
-    const voicedTruncated = voicedRows.length > limit;
-    const foundTruncated = foundRows.length > limit;
-    const isTruncated = voicedTruncated || foundTruncated;
+    // Detect truncation per group (limit + 1 rows fetched), never from the merged length
+    const isHighTrustTruncated = htVoicedRows.length > limit || htFoundRows.length > limit;
+    const isUnverifiedTruncated = unvVoicedRows.length > limit || unvFoundRows.length > limit;
+    const isTruncated = isHighTrustTruncated || isUnverifiedTruncated;
 
     // Take at most `limit` rows from each query if truncated
-    const voicedSlice = voicedTruncated ? voicedRows.slice(0, limit) : voicedRows;
-    const foundSlice = foundTruncated ? foundRows.slice(0, limit) : foundRows;
+    const htVoicedSlice = htVoicedRows.length > limit ? htVoicedRows.slice(0, limit) : htVoicedRows;
+    const htFoundSlice = htFoundRows.length > limit ? htFoundRows.slice(0, limit) : htFoundRows;
+    const unvVoicedSlice = unvVoicedRows.length > limit ? unvVoicedRows.slice(0, limit) : unvVoicedRows;
+    const unvFoundSlice = unvFoundRows.length > limit ? unvFoundRows.slice(0, limit) : unvFoundRows;
 
     // Merge and deduplicate client-side by id
     const reportMap = new Map<string, VoiceConfusionReport>();
-    for (const r of voicedSlice) {
+    for (const r of htVoicedSlice) {
       reportMap.set(r.id, r);
     }
-    for (const r of foundSlice) {
+    for (const r of htFoundSlice) {
+      reportMap.set(r.id, r);
+    }
+    for (const r of unvVoicedSlice) {
+      reportMap.set(r.id, r);
+    }
+    for (const r of unvFoundSlice) {
       reportMap.set(r.id, r);
     }
 
@@ -1173,33 +1212,52 @@ export async function fetchLocationReports(
       return a.id.localeCompare(b.id);
     });
 
-    return { reports: allData, isTruncated };
+    return {
+      reports: allData,
+      isTruncated,
+      isHighTrustTruncated,
+      isUnverifiedTruncated
+    };
   }
 
   // Local fallback: includes non-flagged, non-rejected, non-pending reports
-  const voicedMatches = localReportsStore.filter(r => {
+  const htVoiced = localReportsStore.filter(r => {
     const vNorm = normaliseLocationCode(r.voiced_location_norm || r.voiced_location || r.heard_location || '');
-    const activeStatus = r.status === 'community_submitted' || r.status === 'confirmed' || r.status === 'approved';
-    return vNorm === cleanLoc && activeStatus;
+    return vNorm === cleanLoc && (r.status === 'confirmed' || r.status === 'approved');
   });
-  const foundMatches = localReportsStore.filter(r => {
+  const htFound = localReportsStore.filter(r => {
     const fNorm = normaliseLocationCode(r.found_location_norm || r.found_location || r.actual_location || '');
-    const activeStatus = r.status === 'community_submitted' || r.status === 'confirmed' || r.status === 'approved';
-    return fNorm === cleanLoc && activeStatus;
+    return fNorm === cleanLoc && (r.status === 'confirmed' || r.status === 'approved');
+  });
+  const unvVoiced = localReportsStore.filter(r => {
+    const vNorm = normaliseLocationCode(r.voiced_location_norm || r.voiced_location || r.heard_location || '');
+    return vNorm === cleanLoc && r.status === 'community_submitted';
+  });
+  const unvFound = localReportsStore.filter(r => {
+    const fNorm = normaliseLocationCode(r.found_location_norm || r.found_location || r.actual_location || '');
+    return fNorm === cleanLoc && r.status === 'community_submitted';
   });
 
-  const voicedTruncated = voicedMatches.length > limit;
-  const foundTruncated = foundMatches.length > limit;
-  const isTruncated = voicedTruncated || foundTruncated;
+  const isHighTrustTruncated = htVoiced.length > limit || htFound.length > limit;
+  const isUnverifiedTruncated = unvVoiced.length > limit || unvFound.length > limit;
+  const isTruncated = isHighTrustTruncated || isUnverifiedTruncated;
 
-  const voicedSlice = voicedTruncated ? voicedMatches.slice(0, limit) : voicedMatches;
-  const foundSlice = foundTruncated ? foundMatches.slice(0, limit) : foundMatches;
+  const htVoicedSlice = htVoiced.length > limit ? htVoiced.slice(0, limit) : htVoiced;
+  const htFoundSlice = htFound.length > limit ? htFound.slice(0, limit) : htFound;
+  const unvVoicedSlice = unvVoiced.length > limit ? unvVoiced.slice(0, limit) : unvVoiced;
+  const unvFoundSlice = unvFound.length > limit ? unvFound.slice(0, limit) : unvFound;
 
   const reportMap = new Map<string, VoiceConfusionReport>();
-  for (const r of voicedSlice) {
+  for (const r of htVoicedSlice) {
     reportMap.set(r.id, r);
   }
-  for (const r of foundSlice) {
+  for (const r of htFoundSlice) {
+    reportMap.set(r.id, r);
+  }
+  for (const r of unvVoicedSlice) {
+    reportMap.set(r.id, r);
+  }
+  for (const r of unvFoundSlice) {
     reportMap.set(r.id, r);
   }
 
@@ -1210,7 +1268,12 @@ export async function fetchLocationReports(
     return a.id.localeCompare(b.id);
   });
 
-  return { reports: allData, isTruncated };
+  return {
+    reports: allData,
+    isTruncated,
+    isHighTrustTruncated,
+    isUnverifiedTruncated
+  };
 }
 
 /**

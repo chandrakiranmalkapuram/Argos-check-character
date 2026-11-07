@@ -166,8 +166,8 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
       }
     });
 
-    it('verifies status "archived"; provenance "moderator_confirmed" with an acoustic reason elevates, but with "other" or "similar_check_character" does not elevate', () => {
-      // 1. Status 'archived' with provenance 'moderator_confirmed' and acoustic reason ('similar_sounding') -> ELEVATES to Tier 1
+    it('verifies Decision D11 status and provenance rules: archived, flagged, rejected, and pending with moderator_confirmed DO NOT elevate, while community_submitted with moderator_confirmed and acoustic elevates', () => {
+      // 1. Status 'archived' with provenance 'moderator_confirmed' and acoustic reason -> DOES NOT ELEVATE (stays Tier 3)
       const archivedModAcoustic: VoiceConfusionReport = {
         id: 'rep-archived-mod-acoustic',
         user_id: null,
@@ -181,45 +181,66 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
         created_at: '2026-11-01T00:00:00.000Z',
         updated_at: '2026-11-01T00:00:00.000Z'
       };
-      const resAcoustic = suggestConfusions('10AK', { communityReports: [archivedModAcoustic] });
-      const candAcoustic = resAcoustic.candidates.find(c => c.location === '10BZ');
-      expect(candAcoustic?.tier).toBe('tier1_reported');
+      const resArchived = suggestConfusions('10AK', { communityReports: [archivedModAcoustic] });
+      const candArchived = resArchived.candidates.find(c => c.location === '10BZ');
+      expect(candArchived?.tier).toBe('tier3_possible');
 
-      // 2. Status 'archived' with provenance 'moderator_confirmed' and reason 'other' -> DOES NOT ELEVATE (stays Tier 3)
-      const archivedModOther: VoiceConfusionReport = {
-        id: 'rep-archived-mod-other',
+      // 2. Disallowed statuses with moderator_confirmed: flagged, rejected, pending -> NONE ELEVATE
+      const disallowedWithMod = ['flagged', 'rejected', 'pending'] as const;
+      for (const st of disallowedWithMod) {
+        const repDisallowed: VoiceConfusionReport = {
+          id: `rep-${st}-mod`,
+          user_id: null,
+          voiced_location: '10AK',
+          found_location: '10BZ',
+          reason: 'similar_sounding',
+          status: st,
+          provenance: 'moderator_confirmed',
+          confirmations_count: 3,
+          flag_count: 0,
+          created_at: '2026-11-01T00:00:00.000Z',
+          updated_at: '2026-11-01T00:00:00.000Z'
+        };
+        const res = suggestConfusions('10AK', { communityReports: [repDisallowed] });
+        const cand = res.candidates.find(c => c.location === '10BZ');
+        expect(cand?.tier, `Status ${st} with moderator_confirmed must not elevate`).toBe('tier3_possible');
+      }
+
+      // 3. Status 'community_submitted' with provenance 'moderator_confirmed' and acoustic reason -> ELEVATES to Tier 1
+      const communityModAcoustic: VoiceConfusionReport = {
+        id: 'rep-community-mod-acoustic',
+        user_id: null,
+        voiced_location: '10AK',
+        found_location: '10BZ',
+        reason: 'similar_sounding',
+        status: 'community_submitted',
+        provenance: 'moderator_confirmed',
+        confirmations_count: 3,
+        flag_count: 0,
+        created_at: '2026-11-01T00:00:00.000Z',
+        updated_at: '2026-11-01T00:00:00.000Z'
+      };
+      const resCommunity = suggestConfusions('10AK', { communityReports: [communityModAcoustic] });
+      const candCommunity = resCommunity.candidates.find(c => c.location === '10BZ');
+      expect(candCommunity?.tier).toBe('tier1_reported');
+
+      // 4. Status 'community_submitted' with provenance 'moderator_confirmed' and reason 'other' -> DOES NOT ELEVATE (stays Tier 3)
+      const communityModOther: VoiceConfusionReport = {
+        id: 'rep-community-mod-other',
         user_id: null,
         voiced_location: '10AK',
         found_location: '10BZ',
         reason: 'other',
-        status: 'archived',
+        status: 'community_submitted',
         provenance: 'moderator_confirmed',
         confirmations_count: 3,
         flag_count: 0,
         created_at: '2026-11-01T00:00:00.000Z',
         updated_at: '2026-11-01T00:00:00.000Z'
       };
-      const resOther = suggestConfusions('10AK', { communityReports: [archivedModOther] });
+      const resOther = suggestConfusions('10AK', { communityReports: [communityModOther] });
       const candOther = resOther.candidates.find(c => c.location === '10BZ');
       expect(candOther?.tier).toBe('tier3_possible');
-
-      // 3. Status 'archived' with provenance 'moderator_confirmed' and reason 'similar_check_character' -> DOES NOT ELEVATE (stays Tier 3)
-      const archivedModCheckChar: VoiceConfusionReport = {
-        id: 'rep-archived-mod-checkchar',
-        user_id: null,
-        voiced_location: '10AK',
-        found_location: '10BZ',
-        reason: 'similar_check_character',
-        status: 'archived',
-        provenance: 'moderator_confirmed',
-        confirmations_count: 3,
-        flag_count: 0,
-        created_at: '2026-11-01T00:00:00.000Z',
-        updated_at: '2026-11-01T00:00:00.000Z'
-      };
-      const resCheckChar = suggestConfusions('10AK', { communityReports: [archivedModCheckChar] });
-      const candCheckChar = resCheckChar.candidates.find(c => c.location === '10BZ');
-      expect(candCheckChar?.tier).toBe('tier3_possible');
     });
 
     it('verifies report direction is strictly preserved (voiced -> found)', () => {

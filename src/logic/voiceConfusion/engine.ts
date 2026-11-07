@@ -325,6 +325,7 @@ export function suggestConfusions(
           reportedLocation: repFound,
           reportedCheckChar: foundCalc.checkChar,
           reportCount: rep.confirmations_count || 1,
+          provenance: rep.provenance,
           details: rep.details ?? undefined,
           explanation: `Reported location ${repFound} has check character '${foundCalc.checkChar}' while ${normalized} has '${targetCheckChar}'. The discrepancy would normally be rejected by the check-character step.`
         });
@@ -398,24 +399,32 @@ export function suggestConfusions(
     const reportedInfo = reportedCounterparts.get(peerCode);
     const isReported = reportedInfo !== undefined;
 
-    // Decision D3 & Decision D11 (Option A): Tier 1 requirements:
-    // Requires:
-    // 1. Acoustic reason ('similar_sounding' or 'headset_misrecognition').
-    //    Reasons 'similar_check_character' and 'other' reflect non-acoustic layout/misplacement
-    //    or check collision, and are excluded as a deliberate fail-safe against unreliable submitter selection.
-    // 2. Status 'approved' or 'confirmed' OR provenance 'moderator_confirmed'.
-    // 3. Provenance other than 'seed_observation'.
+    // Decision D3 & Decision D11 (Option A Correction): Tier 1 requirements:
+    // Requires ALL of:
+    // 1. Provenance is not 'seed_observation'
+    // 2. Reason is 'similar_sounding' or 'headset_misrecognition' (acoustic reasons only)
+    // 3. Status is not 'flagged', 'rejected', 'archived', or 'pending'
+    // 4. (status is 'approved' or 'confirmed', OR provenance is 'moderator_confirmed' with status 'community_submitted')
+    const rep = reportedInfo?.report;
     const isAcousticReason =
-      reportedInfo?.report.reason === 'similar_sounding' ||
-      reportedInfo?.report.reason === 'headset_misrecognition';
+      rep?.reason === 'similar_sounding' ||
+      rep?.reason === 'headset_misrecognition';
+
+    const isDisallowedStatus =
+      rep?.status === 'flagged' ||
+      rep?.status === 'rejected' ||
+      rep?.status === 'archived' ||
+      rep?.status === 'pending';
 
     const qualifiesForTier1 =
       isReported &&
-      reportedInfo.report.provenance !== 'seed_observation' &&
+      rep !== undefined &&
+      rep.provenance !== 'seed_observation' &&
       isAcousticReason &&
-      (reportedInfo.report.status === 'approved' ||
-        reportedInfo.report.status === 'confirmed' ||
-        reportedInfo.report.provenance === 'moderator_confirmed');
+      !isDisallowedStatus &&
+      (rep.status === 'approved' ||
+        rep.status === 'confirmed' ||
+        (rep.provenance === 'moderator_confirmed' && rep.status === 'community_submitted'));
 
     const isReferenceExample =
       isReported && reportedInfo.report.provenance === 'seed_observation';

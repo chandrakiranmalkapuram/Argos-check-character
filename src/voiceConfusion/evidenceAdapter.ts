@@ -33,6 +33,8 @@ export type EvidenceResult =
       kind: 'available';
       reports: VoiceConfusionReport[];
       isTruncated: boolean;
+      isHighTrustTruncated: boolean;
+      isUnverifiedTruncated: boolean;
     }
   | {
       kind: 'unavailable';
@@ -115,7 +117,9 @@ export async function fetchEvidenceForLocation(
     return {
       kind: 'available',
       reports: [],
-      isTruncated: false
+      isTruncated: false,
+      isHighTrustTruncated: false,
+      isUnverifiedTruncated: false
     };
   }
 
@@ -155,12 +159,14 @@ export async function fetchEvidenceForLocation(
 
   try {
     const limit = options?.limit ?? 50;
-    const { reports, isTruncated } = await fetchLocationReports(clean, limit);
+    const { reports, isTruncated, isHighTrustTruncated, isUnverifiedTruncated } = await fetchLocationReports(clean, limit);
 
     const available: EvidenceResult = {
       kind: 'available',
       reports,
-      isTruncated
+      isTruncated,
+      isHighTrustTruncated,
+      isUnverifiedTruncated
     };
 
     evidenceCache.set(clean, {
@@ -226,104 +232,4 @@ export async function getEvidenceSuggestions(
     suggestionResult,
     evidence
   };
-}
-
-/**
- * Debounced committed input fetch coordinator with stale-response protection.
- *
- * Guarantees:
- * - No network call per keystroke.
- * - One fetch triggered once input is committed or debounced.
- * - Out-of-order or stale in-flight responses are strictly ignored.
- */
-export class CommittedEvidenceCoordinator {
-  private currentRequestId = 0;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  /**
-   * Schedules a debounced fetch for committed input.
-   * Returns a cancellation function.
-   */
-  public scheduleFetch(
-    location: string,
-    onComplete: (result: EvidenceSuggestionsResult) => void,
-    delayMs: number = 300,
-    options?: SuggestionOptions & { limit?: number; bypassCache?: boolean; forceConfigured?: boolean }
-  ): () => void {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-
-    const requestId = ++this.currentRequestId;
-
-    this.debounceTimer = setTimeout(async () => {
-      try {
-        const result = await getEvidenceSuggestions(location, options);
-        // Only deliver if this is still the latest active request
-        if (requestId === this.currentRequestId) {
-          onComplete(result);
-        }
-      } catch {
-        // If an unexpected exception escapes, ignore if stale
-      }
-    }, delayMs);
-
-    return () => {
-      if (this.debounceTimer) {
-        clearTimeout(this.debounceTimer);
-        this.debounceTimer = null;
-      }
-    };
-  }
-
-  /**
-   * Immediately commits a location input, cancelling any pending debounced timers,
-   * and dispatches a fetch. If another commit occurs while this request is in-flight,
-   * the response from this request is strictly ignored.
-   */
-  public async commitInput(
-    location: string,
-    onComplete: (result: EvidenceSuggestionsResult) => void,
-    options?: SuggestionOptions & { limit?: number; bypassCache?: boolean; forceConfigured?: boolean }
-  ): Promise<void> {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-
-    const requestId = ++this.currentRequestId;
-    try {
-      const result = await getEvidenceSuggestions(location, options);
-      if (requestId === this.currentRequestId) {
-        onComplete(result);
-      }
-    } catch {
-      // Ignore errors for stale requests
-    }
-  }
-
-  /**
-   * Immediately executes a fetch for a committed input (e.g. on Enter key or button click),
-   * cancelling any pending debounced timers.
-   */
-  public async executeImmediate(
-    location: string,
-    options?: SuggestionOptions & { limit?: number; bypassCache?: boolean; forceConfigured?: boolean }
-  ): Promise<EvidenceSuggestionsResult | null> {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-
-    const requestId = ++this.currentRequestId;
-    const result = await getEvidenceSuggestions(location, options);
-
-    if (requestId === this.currentRequestId) {
-      return result;
-    }
-
-    // Discard stale response
-    return null;
-  }
 }
