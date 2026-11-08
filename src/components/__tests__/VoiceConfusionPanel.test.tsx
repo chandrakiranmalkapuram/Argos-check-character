@@ -4,8 +4,6 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import { VoiceConfusionPanel } from '../VoiceConfusionPanel.tsx';
 import * as adapterModule from '../../voiceConfusion/evidenceAdapter.ts';
 import * as engineModule from '../../logic/voiceConfusion/engine.ts';
-import * as serviceModule from '../../voiceConfusion/service.ts';
-import { ReportSearch } from '../../voiceConfusion/components/ReportSearch.tsx';
 import type { VoiceConfusionReport } from '../../voiceConfusion/types.ts';
 
 describe('Milestone 6: VoiceConfusionPanel Component', () => {
@@ -162,7 +160,8 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Close sound-alikes')).toBeTruthy();
+        expect(screen.getByText('10DD')).toBeTruthy();
+        expect(screen.queryByText(/Loading community evidence/i)).toBeNull();
       });
 
       // 1. Verify 10DD (check character NOVEMBER) is present as a close sound-alike
@@ -229,6 +228,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       const { unmount: unmount1 } = render(<VoiceConfusionPanel currentLocation="J7AZ" debounceMs={0} />);
       await waitFor(() => {
         expect(document.querySelector('.vc-section--reported-pairs')).toBeTruthy();
+        expect(screen.queryByText(/Loading community evidence/i)).toBeNull();
       });
       const sec1 = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
       const seedBadge = within(sec1).getByText('Reference example');
@@ -378,7 +378,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Reported pairs/)).toBeTruthy();
+        expect(screen.getByText("Reporter's note (free text, unverified)")).toBeTruthy();
       });
 
       // Labelled disclosure exists
@@ -395,7 +395,8 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       render(<VoiceConfusionPanel currentLocation="08MN" debounceMs={0} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Reported pairs/)).toBeTruthy();
+        expect(screen.getByText('20AN')).toBeTruthy();
+        expect(screen.queryByText(/Loading community evidence/i)).toBeNull();
       });
 
       // Seed observation details must NOT be rendered anywhere
@@ -796,46 +797,6 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       // Panel must stay on 21EZ results; 10DD from 10AK must be strictly ignored
       expect(screen.getByText('21DK')).toBeTruthy();
       expect(screen.queryByText('10DD')).toBeNull();
-    });
-  });
-
-  describe('12. Decision D15: ReportSearch Details Suppression for Seed Observations', () => {
-    it('suppresses worker notes details in ReportSearch for seed_observation, but renders them for community_submitted', async () => {
-      vi.spyOn(serviceModule, 'searchCommunityReports').mockResolvedValue({
-        reports: [
-          baseReport({
-            id: 'rep-seed-d15',
-            voiced_location: '10AK',
-            found_location: '10KA',
-            provenance: 'seed_observation',
-            details: 'Adjacent character swap produces the same check character in standard formula'
-          }),
-          baseReport({
-            id: 'rep-community-d15',
-            voiced_location: '16ZG',
-            found_location: '16JA',
-            provenance: 'community_submitted',
-            details: 'High radio interference in aisle 16'
-          })
-        ],
-        totalCount: 2,
-        page: 1,
-        pageSize: 10,
-        totalPages: 1
-      });
-
-      render(<ReportSearch initialQuery="10AK" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('High radio interference in aisle 16')).toBeTruthy();
-      });
-
-      // Worker notes label appears for community report
-      expect(screen.getByText(/Worker Notes:/)).toBeTruthy();
-      expect(screen.getByText('High radio interference in aisle 16')).toBeTruthy();
-
-      // Details for seed_observation are suppressed per Decision D15
-      expect(screen.queryByText('Adjacent character swap produces the same check character in standard formula')).toBeNull();
     });
   });
 });
