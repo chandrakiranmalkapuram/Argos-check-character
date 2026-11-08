@@ -161,10 +161,10 @@ The application works out-of-the-box in local demonstration mode when database c
 To enable shared production persistence with **Supabase PostgreSQL**:
 1. Create a Supabase project at [supabase.com](https://supabase.com).
 2. Execute all four migrations in sequential order in the Supabase SQL Editor:
-   - **Migration 1:** [`supabase/migrations/20261014000000_voice_confusion_reports.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000000_voice_confusion_reports.sql) (Base tables, normalisation & duplicate index)
-   - **Migration 2:** [`supabase/migrations/20261014000001_auth_and_user_roles.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000001_auth_and_user_roles.sql) (User roles & initial RLS)
-   - **Migration 3:** [`supabase/migrations/20261014000002_allow_public_submissions.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000002_allow_public_submissions.sql) (Public submissions & pending review status)
-   - **Migration 4:** [`supabase/migrations/20261019000000_voice_confusion_reference.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261019000000_voice_confusion_reference.sql) (Shared community reference, deduplication advisory locks, corroboration/flagging RPCs, clean public SELECT policy, and 7 authoritative reference observations including `J7AZ->07AZ`, `S1PG->01PG`, `10AK->10KA`)
+   - **Migration 1:** [`supabase/migrations/20261014000000_voice_confusion_reports.sql`](supabase/migrations/20261014000000_voice_confusion_reports.sql) (Base tables, normalisation & duplicate index)
+   - **Migration 2:** [`supabase/migrations/20261014000001_auth_and_user_roles.sql`](supabase/migrations/20261014000001_auth_and_user_roles.sql) (User roles & initial RLS)
+   - **Migration 3:** [`supabase/migrations/20261014000002_allow_public_submissions.sql`](supabase/migrations/20261014000002_allow_public_submissions.sql) (Public submissions & pending review status)
+   - **Migration 4:** [`supabase/migrations/20261019000000_voice_confusion_reference.sql`](supabase/migrations/20261019000000_voice_confusion_reference.sql) (Shared community reference, deduplication advisory locks, corroboration/flagging RPCs, clean public SELECT policy, and 7 authoritative reference observations including `J7AZ->07AZ`, `S1PG->01PG`, `10AK->10KA`)
 3. **Frontend Build Variables:**
    Create `.env` locally or configure Cloudflare Pages build environment variables:
    ```bash
@@ -178,7 +178,7 @@ To enable shared production persistence with **Supabase PostgreSQL**:
    - Genuine user contributions carry ✅ `Corroborated Community Report` (2+ confirmations) or 👥 `Community Report (Unverified)` (1 confirmation).
    - In-memory mock data (used only when unconfigured) carries 🧪 `Demo Sample` and is never written to Supabase.
 5. **Provisioning Administrators:**
-   Admins and moderators are provisioned server-side via SQL in `public.user_roles`. Detailed instructions and verification checklists are in [`VOICE_CONFUSION_SETUP.md`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/VOICE_CONFUSION_SETUP.md).
+   Admins and moderators are provisioned server-side via SQL in `public.user_roles`. Detailed instructions and verification checklists are in [`VOICE_CONFUSION_SETUP.md`](VOICE_CONFUSION_SETUP.md).
 
 ---
 
@@ -205,5 +205,3 @@ The suggestion engine ranks same-check candidate locations into three risk tiers
    - Token gap cost is maintained at `0.90`. At this setting, gapped alignment equals fixed-position alignment for all tested pairs, but is **not mathematically identical** for all equal-length codes: gapped alignment can be cheaper in rare cases where two substitutions cost more than two gap penalties. For example, comparing aisles 13 vs 39 with identical letters (`13AA` vs `39AA`): fixed-position alignment yields `ONE/THREE` (0.97) + `THREE/NINE` (1.00) = `1.97`, whereas gapped alignment yields `2 × 0.90 = 1.80` (aligning `THREE/THREE` at 0 cost with an insertion and a deletion). Gapped alignment is primarily relevant for unequal token lengths (such as 3-token Cash Office codes vs 4-token standard codes). Lowering the gap cost does not surface the shift seeds because they differ by 3–4 tokens.
 4. **Pure Acoustic vs. Human Errors:**
    - Not all reported confusions are acoustic. For example, shelf mispicks or digit transpositions may occur due to physical stock misplacement or reading errors rather than headset misrecognition.
-
-

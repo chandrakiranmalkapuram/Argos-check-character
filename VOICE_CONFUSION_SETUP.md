@@ -57,28 +57,28 @@ Because Vite embeds `VITE_*` variables into the JavaScript bundle at **compile t
 Execute all four SQL migrations sequentially in the Supabase Dashboard **SQL Editor** or using the Supabase CLI (`supabase db push`). All migrations are strictly idempotent and safe to re-run.
 
 ### Migration 1: Base Tables, Indexes & Duplicate Constraints
-File: [`supabase/migrations/20261014000000_voice_confusion_reports.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000000_voice_confusion_reports.sql)
+File: [`supabase/migrations/20261014000000_voice_confusion_reports.sql`](supabase/migrations/20261014000000_voice_confusion_reports.sql)
 - Creates `voice_confusion_reports` table with stored generated columns (`heard_location_norm`, `actual_location_norm`).
 - Creates `idx_voice_confusion_unique_report` unique constraint for duplicate prevention.
 - Creates `voice_confusion_rate_limits` table for anti-spam tracking.
 - Enables initial Row Level Security (RLS).
 
 ### Migration 2: Authentication, User Roles & Enhanced RLS
-File: [`supabase/migrations/20261014000001_auth_and_user_roles.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000001_auth_and_user_roles.sql)
+File: [`supabase/migrations/20261014000001_auth_and_user_roles.sql`](supabase/migrations/20261014000001_auth_and_user_roles.sql)
 - Adds `user_id UUID REFERENCES auth.users(id)` column to `voice_confusion_reports`.
 - Creates `public.user_roles` table with `role` enum (`admin`, `moderator`, `user`).
 - Creates helper functions `is_admin()` and `is_moderator()`.
 - Establishes RLS policies prohibiting users from self-elevating their roles.
 
 ### Migration 3: Public Report Submissions & Pending Review Enforcement
-File: [`supabase/migrations/20261014000002_allow_public_submissions.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261014000002_allow_public_submissions.sql)
+File: [`supabase/migrations/20261014000002_allow_public_submissions.sql`](supabase/migrations/20261014000002_allow_public_submissions.sql)
 - Updates RLS policy to allow public/anonymous report inserts with mandatory `status = 'pending'`.
 - Updates `submit_voice_confusion_report` RPC to accept submissions without requiring `auth.uid()`.
 - Implements `client_hash` rate limiting for unauthenticated visitors.
 - Adds `is_submission_allowed()` hook for future allowlist extensibility.
 
 ### Migration 4: Shared Community Reference, Corroboration & Deduplication
-File: [`supabase/migrations/20261019000000_voice_confusion_reference.sql`](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/supabase/migrations/20261019000000_voice_confusion_reference.sql)
+File: [`supabase/migrations/20261019000000_voice_confusion_reference.sql`](supabase/migrations/20261019000000_voice_confusion_reference.sql)
 - Adds `voiced_location`, `found_location`, `provenance`, `confirmations_count`, and `flag_count` columns.
 - Creates stored generated columns `voiced_location_norm` and `found_location_norm`.
 - Creates child tracking tables: `voice_confusion_confirmations` and `voice_confusion_flags` with composite primary keys `(report_id, client_hash)`.
@@ -217,5 +217,3 @@ Disallowed statuses (`flagged`, `'rejected'`, `'archived'`, `'pending'`) with `m
 - **Community Reports:** For all other reports, `details` is rendered as plain text limited to 200 characters inside a collapsed `<details>` disclosure labelled:
   `"Reporter's note (free text, unverified)"`.
 - Application-generated text strictly obeys Invariant I6 (digit-by-digit spoken words); user-supplied free text is exempt but isolated within this disclosure.
-
-

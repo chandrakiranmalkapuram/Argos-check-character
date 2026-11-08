@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Voice Confusion Engine Benchmark Evaluation Harness
- * 
+ *
  * Reads benchmark cases from benchmarks/voice_confusion_benchmark.jsonl,
  * evaluates each pair using the deterministic Voice Confusion Engine,
  * and prints detailed classification, tier, rank, and distance metrics.
- * 
+ *
  * Usage:
  *   node --experimental-strip-types scripts/run_voice_confusion_benchmark.mjs
  *   or: npm run benchmark:voice
@@ -56,7 +56,7 @@ function runBenchmark() {
 
   for (let i = 0; i < rawLines.length; i++) {
     const record = JSON.parse(rawLines[i]);
-    const { a, b, mode = 'store', source, confused, count, date } = record;
+    const { a, b, mode = 'store', source, confused } = record;
 
     const checkA = getCheckChar(a, mode);
     const checkB = getCheckChar(b, mode);
@@ -111,8 +111,6 @@ function runBenchmark() {
       mode,
       source,
       confused,
-      count,
-      date,
       checkA,
       checkB,
       isSameCheck,
@@ -139,7 +137,7 @@ function runBenchmark() {
 
   for (const r of results) {
     const pairStr = `${r.a} -> ${r.b}`;
-    const checkMatchStr = r.isSameCheck ? 'YES (hazard)' : 'NO (safe)';
+    const checkMatchStr = r.isSameCheck ? 'YES (same check)' : 'NO (diff check)';
     const checkCharStr = `${r.checkA} / ${r.checkB}`;
     const distStr = r.meanDistance.toFixed(4);
     const rankTierStr = r.rank !== '-' ? `${r.rank} (${r.tier})` : `(${r.tier})`;
@@ -147,7 +145,7 @@ function runBenchmark() {
     console.log(
       String(r.index).padEnd(4) +
       pairStr.padEnd(16) +
-      checkMatchStr.padEnd(14) +
+      checkMatchStr.padEnd(18) +
       checkCharStr.padEnd(20) +
       distStr.padEnd(12) +
       rankTierStr.padEnd(22) +
@@ -159,8 +157,8 @@ function runBenchmark() {
   console.log('BENCHMARK SUMMARY & METRICS');
   console.log('='.repeat(80));
   console.log(`Total Cases Evaluated:     ${results.length}`);
-  console.log(`Same-Check Collisions:     ${sameCheckCount} (critical warehouse operational hazards)`);
-  console.log(`Different-Check Reports:   ${diffCheckCount} (self-correcting check-character rejections)`);
+  console.log(`Same-Check Pairs:          ${sameCheckCount} (same-check pairs (not caught by the check-character step if the confusion occurred))`);
+  console.log(`Different-Check Reports:   ${diffCheckCount} (different check character (would normally be rejected by the check-character step))`);
 
   const tierCounts = {};
   for (const r of results) {
@@ -176,7 +174,7 @@ function runBenchmark() {
   console.log('='.repeat(80));
   console.log(`
 1. Real Warehouse Audio Transcripts:
-   Current benchmark relies on documented operational shift observations.
+   Current benchmark relies on reference examples (provenance seed_observation); not independent field data.
    Production validation requires time-aligned headset audio recordings and
    ASR acoustic model log-likelihood scores.
 

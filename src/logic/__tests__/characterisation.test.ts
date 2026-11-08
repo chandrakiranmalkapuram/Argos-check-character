@@ -345,4 +345,3 @@ describe('Milestone 1: Characterisation Tests', () => {
     });
   });
 });
-

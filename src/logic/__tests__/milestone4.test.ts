@@ -722,4 +722,155 @@ describe('Milestone 4: Suggestion Engine, Ranking, and Plain-English Explanation
       }
     });
   });
+
+  describe('9. Deduplication of Community and Seed Evidence Rows', () => {
+    it('seeds only: sections (a) and (e) list each reported seed pair exactly once', () => {
+      // 16ZG -> 16JA (same check: KILO)
+      const res16ZG = suggestConfusions('16ZG');
+      expect(res16ZG.reportedPairs.filter(p => p.reportedLocation === '16JA')).toHaveLength(1);
+      expect(res16ZG.reportedPairs[0]).toMatchObject({
+        reportedLocation: '16JA',
+        direction: 'voiced_to_found',
+        provenance: 'seed_observation',
+        label: 'Reference example'
+      });
+
+      // J7AZ -> 07AZ (same check: YANKEE)
+      const resJ7AZ = suggestConfusions('J7AZ');
+      expect(resJ7AZ.reportedPairs.filter(p => p.reportedLocation === '07AZ')).toHaveLength(1);
+
+      // 10AK -> 10KA (different check: NOVEMBER vs BRAVO)
+      const res10AK = suggestConfusions('10AK');
+      expect(res10AK.differentCheckCommunityReports.filter(r => r.reportedLocation === '10KA')).toHaveLength(1);
+      expect(res10AK.differentCheckCommunityReports[0]).toMatchObject({
+        inputLocation: '10AK',
+        reportedLocation: '10KA',
+        provenance: 'seed_observation'
+      });
+
+      // S1PG -> 01PG (different check: X-RAY vs ECHO)
+      const resS1PG = suggestConfusions('S1PG');
+      expect(resS1PG.differentCheckCommunityReports.filter(r => r.reportedLocation === '01PG')).toHaveLength(1);
+    });
+
+    it('seeds plus same rows from evidence adapter: de-duplicates and prefers the database row', () => {
+      const mockDbRow16ZG: VoiceConfusionReport = {
+        id: 'db-row-16zg-16ja',
+        user_id: null,
+        voiced_location: '16ZG',
+        found_location: '16JA',
+        raw_voiced_location: '16ZG',
+        raw_found_location: '16JA',
+        voiced_location_norm: '16ZG',
+        found_location_norm: '16JA',
+        heard_location: '16ZG',
+        actual_location: '16JA',
+        heard_location_norm: '16ZG',
+        actual_location_norm: '16JA',
+        reason: 'similar_sounding',
+        details: 'Verified database observation',
+        status: 'approved',
+        provenance: 'community_submitted',
+        confirmations_count: 5,
+        flag_count: 0,
+        created_at: '2026-11-01T10:00:00.000Z',
+        updated_at: '2026-11-01T10:00:00.000Z'
+      };
+
+      const res16ZG = suggestConfusions('16ZG', { communityReports: [mockDbRow16ZG] });
+      const matches16JA = res16ZG.reportedPairs.filter(p => p.reportedLocation === '16JA');
+      expect(matches16JA).toHaveLength(1);
+      expect(matches16JA[0]).toMatchObject({
+        reportedLocation: '16JA',
+        direction: 'voiced_to_found',
+        provenance: 'community_submitted', // Preferred database row over in-code seed!
+        status: 'approved',
+        reportCount: 5,
+        label: 'Approved'
+      });
+
+      // Different check pair 10AK -> 10KA with database row
+      const mockDbRow10AK: VoiceConfusionReport = {
+        id: 'db-row-10ak-10ka',
+        user_id: null,
+        voiced_location: '10AK',
+        found_location: '10KA',
+        raw_voiced_location: '10AK',
+        raw_found_location: '10KA',
+        voiced_location_norm: '10AK',
+        found_location_norm: '10KA',
+        heard_location: '10AK',
+        actual_location: '10KA',
+        heard_location_norm: '10AK',
+        actual_location_norm: '10KA',
+        reason: 'similar_check_character',
+        details: 'Database swap observation',
+        status: 'approved',
+        provenance: 'community_submitted',
+        confirmations_count: 8,
+        flag_count: 0,
+        created_at: '2026-11-01T10:00:00.000Z',
+        updated_at: '2026-11-01T10:00:00.000Z'
+      };
+
+      const res10AK = suggestConfusions('10AK', { communityReports: [mockDbRow10AK] });
+      const matches10KA = res10AK.differentCheckCommunityReports.filter(r => r.reportedLocation === '10KA');
+      expect(matches10KA).toHaveLength(1);
+      expect(matches10KA[0]).toMatchObject({
+        inputLocation: '10AK',
+        reportedLocation: '10KA',
+        provenance: 'community_submitted',
+        reportCount: 8
+      });
+    });
+
+    it('opposite direction: de-duplicates opposite direction reports without duplication', () => {
+      // 16JA was found when 16ZG was voiced: searching 16JA should list 16ZG as opposite_direction
+      const resSeedsOnly = suggestConfusions('16JA');
+      const oppSeeds = resSeedsOnly.reportedPairs.filter(p => p.reportedLocation === '16ZG');
+      expect(oppSeeds).toHaveLength(1);
+      expect(oppSeeds[0]).toMatchObject({
+        reportedLocation: '16ZG',
+        direction: 'opposite_direction',
+        provenance: 'seed_observation',
+        label: 'Reference example'
+      });
+
+      // With database row returned by evidence adapter
+      const mockDbRow16ZG: VoiceConfusionReport = {
+        id: 'db-row-16zg-16ja',
+        user_id: null,
+        voiced_location: '16ZG',
+        found_location: '16JA',
+        raw_voiced_location: '16ZG',
+        raw_found_location: '16JA',
+        voiced_location_norm: '16ZG',
+        found_location_norm: '16JA',
+        heard_location: '16ZG',
+        actual_location: '16JA',
+        heard_location_norm: '16ZG',
+        actual_location_norm: '16JA',
+        reason: 'similar_sounding',
+        details: 'Verified database observation',
+        status: 'confirmed',
+        provenance: 'community_submitted',
+        confirmations_count: 3,
+        flag_count: 0,
+        created_at: '2026-11-01T10:00:00.000Z',
+        updated_at: '2026-11-01T10:00:00.000Z'
+      };
+
+      const resWithDb = suggestConfusions('16JA', { communityReports: [mockDbRow16ZG] });
+      const oppDb = resWithDb.reportedPairs.filter(p => p.reportedLocation === '16ZG');
+      expect(oppDb).toHaveLength(1);
+      expect(oppDb[0]).toMatchObject({
+        reportedLocation: '16ZG',
+        direction: 'opposite_direction',
+        provenance: 'community_submitted', // Prefers database row
+        status: 'confirmed',
+        reportCount: 3,
+        label: 'Confirmed'
+      });
+    });
+  });
 });
