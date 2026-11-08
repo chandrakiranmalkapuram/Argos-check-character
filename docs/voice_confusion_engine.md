@@ -8,8 +8,8 @@ The **Voice Confusion Engine** is an independent, deterministic algorithmic modu
 
 In high-volume voice picking environments (such as Argos and Sainsbury's distribution centres), operatives use headsets to receive pick instructions and must verbally confirm shelf locations by reciting a two-digit or single-letter **check character** printed on the shelf label. The headset software evaluates the spoken check character against an internal verification algorithm.
 
-- **Different-check codes are self-correcting**: If an operative mishears or mispronounces a location whose true check character differs from the intended location, the headset voice recognition software immediately fails the verification check. The picker cannot confirm the pick and is prompted to repeat or re-read the location.
-- **Same-check collisions are critical operational hazards**: If two distinct location codes produce the **exact same check character**, an operative who goes to or recites the wrong location will have their check character silently accepted by the headset. The incorrect item is picked, inventory counts diverge, and error detection is delayed until store dispatch or customer receipt.
+- **Different-check codes**: If an operative mishears or mispronounces a location whose true check character differs from the intended location, the headset voice recognition software would normally reject the verification check. The picker cannot confirm the pick and is prompted to repeat or re-read the location.
+- **Same-check pairs**: If two distinct location codes produce the **exact same check character**, the error is not caught by the check-character step if the confusion occurred.
 
 ### The Same-Check Invariant (I2)
 > **Every candidate suggested in Tier 1 (Reported), Tier 2 (Model-Similar), Tier 3 (Possible), and Section (d) (Arithmetic Pool) MUST share the identical check character of the searched location.**
@@ -64,10 +64,16 @@ Spoken tokens are compared pairwise using an articulatory phonetic feature compa
 
 ---
 
-## 6. Unsupported Inputs
+## 6. Supported Grammar & Unsupported Inputs
 
-The engine operates strictly on 4-character warehouse location codes conformant with Store (`[0-9]{2}[A-Z]{2}` or `[A-Z][0-9][A-Z]{2}`) and RFC (`[A-Z0-9+/-]{4}`) grammar. The following inputs are unsupported:
-- Strings exceeding 4 characters (e.g., 5-character mezzanine codes, free-text strings).
+The engine operates strictly on 4-character warehouse location codes conformant with the four recognised Store patterns:
+1. **Standard aisle**: `[0-9]{2}[A-Z]{2}` (e.g. `10AK`)
+2. **Jewellery / Security**: `[JS][0-9][A-Z]{2}` (e.g. `J7AZ`, `S1PG`)
+3. **Linbin / Bulk**: `[LZ][0-9][A-Z]{2}` (e.g. `L01B`, `Z01B`)
+4. **Cash Office / Collection Point**: `C[AP][0-9]{2}` (e.g. `CA01`, `CP99`)
+
+The following inputs are unsupported:
+- Strings exceeding 4 characters (e.g., `10AKX`, `INVALID123`, `LONGSTRING`).
 - Non-grammar strings, punctuation, or wildcards (`???`, `*`, SQL injection tokens).
 - Whitespace-only or empty strings.
 
@@ -86,10 +92,26 @@ The engine operates strictly on 4-character warehouse location codes conformant 
 A dedicated, opt-in benchmark suite is provided to evaluate model predictions against historical observations.
 
 ### Benchmark Data Format (`benchmarks/voice_confusion_benchmark.jsonl`)
-Lines in JSON Lines format:
+Lines in JSON Lines (`.jsonl`) format:
 ```json
 {"a":"08MN","b":"20AN","mode":"store","source":"seed_observation","confused":true,"count":12,"date":"2026-10-18"}
 ```
+
+### Adding Benchmark Cases
+To add new benchmark cases (such as new field observations, negative controls, or alternate acoustic pairs):
+1. Open `benchmarks/voice_confusion_benchmark.jsonl`.
+2. Append a valid JSON object line with the following fields:
+   - `a`: Searched location code (4-character string).
+   - `b`: Target/confused location code (4-character string).
+   - `mode`: Pronunciation mode (default `"store"`).
+   - `source`: Provenance of the observation (e.g. `"seed_observation"` or `"community_report"`).
+   - `confused`: Boolean (`true` for known confusions, `false` for negative controls).
+   - `count`: Observation count or occurrence frequency.
+   - `date`: ISO date string (e.g. `"2026-11-08"`).
+3. Execute the benchmark runner to verify classification and tier rankings:
+   ```bash
+   npm run benchmark:voice
+   ```
 
 ### Running the Benchmark
 ```bash

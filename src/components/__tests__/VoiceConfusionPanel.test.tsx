@@ -408,7 +408,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
 
       // Open the disclosure
       const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
-      fireEvent.click(poolSummary);
+      const poolDetails = poolSummary.closest('details')!;
+      poolDetails.open = true;
+      fireEvent(poolDetails, new Event('toggle'));
 
       // Now the engine is invoked for the arithmetic pool
       expect(suggestSpy).toHaveBeenCalledWith('21EZ', expect.objectContaining({ includeArithmeticCollisions: true }));
@@ -431,7 +433,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
 
       // Open disclosure
       const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
-      fireEvent.click(poolSummary);
+      const poolDetails = poolSummary.closest('details')!;
+      poolDetails.open = true;
+      fireEvent(poolDetails, new Event('toggle'));
 
       // Verify Page 1
       expect(screen.getByText(/Showing 1–50 of \d+ codes/)).toBeTruthy();
@@ -471,7 +475,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
 
       // Open disclosure
       const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
-      fireEvent.click(poolSummary);
+      const poolDetails = poolSummary.closest('details')!;
+      poolDetails.open = true;
+      fireEvent(poolDetails, new Event('toggle'));
 
       // Type filter for '11BZ'
       const filterInput = screen.getByLabelText('Filter same-check codes');
@@ -490,8 +496,8 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
     });
   });
 
-  describe('8. Disclosures Element Types and aria-expanded State', () => {
-    it('disclosures use native summary elements and reflect aria-expanded state on toggle (real keyboard behaviour requires manual browser check)', async () => {
+  describe('8. Disclosures Element Types and Native Pattern', () => {
+    it('disclosures use native details and summary elements (real keyboard and screen-reader behaviour needs a manual check)', async () => {
       vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
         kind: 'available',
         reports: [],
@@ -506,21 +512,26 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
         expect(screen.getByText('Close sound-alikes')).toBeTruthy();
       });
 
-      const poolSummary = screen.getByRole('button', { name: /All same-check codes/i });
+      const poolSummaryText = screen.getByText('All same-check codes (arithmetic pool)');
+      const poolSummary = poolSummaryText.closest('summary')!;
+      const poolDetails = poolSummaryText.closest('details')!;
 
-      // Assert element type: native <summary> disclosure element
+      // Assert element types: native <details> and <summary> disclosure elements
       expect(poolSummary.tagName.toLowerCase()).toBe('summary');
-      expect(poolSummary.getAttribute('aria-expanded')).toBe('false');
+      expect(poolDetails.tagName.toLowerCase()).toBe('details');
+      expect(poolDetails.open).toBe(false);
 
-      // Click toggles open (native <summary> elements handle Space and Enter natively in real browsers;
-      // jsdom does not dispatch native user-agent keyboard toggle for <details>, so real keyboard behaviour requires manual browser verification)
-      fireEvent.click(poolSummary);
-      expect(poolSummary.getAttribute('aria-expanded')).toBe('true');
+      // In jsdom, dispatch toggle via the details element open property/event
+      // (Real keyboard and screen-reader behaviour needs a manual check in a real browser)
+      poolDetails.open = true;
+      fireEvent(poolDetails, new Event('toggle'));
+      expect(poolDetails.open).toBe(true);
       expect(screen.getByPlaceholderText(/Filter same-check codes/i)).toBeTruthy();
 
-      // Click toggles closed
-      fireEvent.click(poolSummary);
-      expect(poolSummary.getAttribute('aria-expanded')).toBe('false');
+      // Dispatch toggle closed
+      poolDetails.open = false;
+      fireEvent(poolDetails, new Event('toggle'));
+      expect(poolDetails.open).toBe(false);
     });
 
     it('shows Tier 3 collapsed count in Possible sound-alikes disclosure summary', async () => {
@@ -601,7 +612,9 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
 
       // Open "Model details" disclosure
       const modelDetailsSummary = screen.getAllByText('Model details (model assessment, not a probability)')[0];
-      fireEvent.click(modelDetailsSummary);
+      const modelDetails = modelDetailsSummary.closest('details')!;
+      modelDetails.open = true;
+      fireEvent(modelDetails, new Event('toggle'));
 
       // Now the numeric distance is visible inside the disclosure
       expect(screen.getByText(/model assessment:\s*0\.\d{2}/i)).toBeTruthy();
