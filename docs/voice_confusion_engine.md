@@ -8,7 +8,7 @@ The **Voice Confusion Engine** is an independent, deterministic algorithmic modu
 
 In voice picking environments, operatives use headsets to receive pick instructions and must verbally confirm shelf locations. The check character is a NATO word (ALPHA to ZULU) calculated per location, which the headset software requests after the location is entered.
 
-- **Different-check codes**: If an operative mishears or mispronounces a location whose true check character differs from the intended location, the headset voice recognition software would normally be rejected by the check-character step. The picker cannot confirm the pick and is prompted to repeat or re-read the location.
+- **Different-check codes**: If an operative mishears or mispronounces a location whose true check character differs from the intended location, the headset check would normally reject it. The picker cannot confirm the pick and is prompted to repeat or re-read the location.
 - **Same-check pairs**: If two distinct location codes produce the exact same check character, the error would not be caught by the check-character step if the confusion occurred.
 
 ### The Architectural Invariants (I1–I7)
@@ -205,7 +205,7 @@ Lines in JSON Lines (`.jsonl`) format contain `a`, `b`, `mode`, `source`, and `c
 ### Adding Benchmark Cases
 To add new benchmark cases (such as new field observations, negative controls, or alternate acoustic pairs):
 1. Open `benchmarks/voice_confusion_benchmark.jsonl`.
-2. Append a valid JSON object line:
+2. Append a valid JSON object line (illustrative placeholder, not real data):
    ```json
    {"a":"16ZG","b":"16CZ","mode":"store","source":"community_report","confused":true}
    ```
