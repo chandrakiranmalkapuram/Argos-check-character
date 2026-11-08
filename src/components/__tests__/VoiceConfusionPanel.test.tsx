@@ -407,7 +407,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       expect(suggestSpy).not.toHaveBeenCalledWith('21EZ', expect.objectContaining({ includeArithmeticCollisions: true }));
 
       // Open the disclosure
-      const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
+      const poolSummary = screen.getByText('Remaining same-check codes (arithmetic pool)');
       const poolDetails = poolSummary.closest('details')!;
       poolDetails.open = true;
       fireEvent(poolDetails, new Event('toggle'));
@@ -432,7 +432,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       });
 
       // Open disclosure
-      const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
+      const poolSummary = screen.getByText('Remaining same-check codes (arithmetic pool)');
       const poolDetails = poolSummary.closest('details')!;
       poolDetails.open = true;
       fireEvent(poolDetails, new Event('toggle'));
@@ -474,7 +474,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       });
 
       // Open disclosure
-      const poolSummary = screen.getByText('All same-check codes (arithmetic pool)');
+      const poolSummary = screen.getByText('Remaining same-check codes (arithmetic pool)');
       const poolDetails = poolSummary.closest('details')!;
       poolDetails.open = true;
       fireEvent(poolDetails, new Event('toggle'));
@@ -512,7 +512,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
         expect(screen.getByText('Close sound-alikes')).toBeTruthy();
       });
 
-      const poolSummaryText = screen.getByText('All same-check codes (arithmetic pool)');
+      const poolSummaryText = screen.getByText('Remaining same-check codes (arithmetic pool)');
       const poolSummary = poolSummaryText.closest('summary')!;
       const poolDetails = poolSummaryText.closest('details')!;
 

@@ -99,7 +99,7 @@ export function classifyAlignmentTier(
 | **Tier 1** | **Reported & Verified** | Verified community or moderator report sharing the same check character, with an acoustic reason (`similar_sounding` or `headset_misrecognition`) and status `approved`/`confirmed` (or provenance `moderator_confirmed` with `community_submitted`). | Elevated above algorithmic ranking. |
 | **Tier 2** | **Model-Similar** | 0 far tokens (all differing tokens have pairwise distance $\le \text{MODEL\_SIMILAR\_TOKEN\_THRESHOLD}$, which is $0.55$) and total differing tokens $\le \text{MAX\_DIFFERING\_TOKENS\_TIER2}$. | `farTokens === 0`, `differingTokens <= 2`. |
 | **Tier 3** | **Possible Sound-Alikes** | Exactly 1 far token (pairwise distance $> 0.55$), total differing tokens $\le \text{MAX\_DIFFERING\_TOKENS\_TIER3}$. (An optional ceiling `maxFarTokenDistanceTier3` exists in the code but is disabled by default). | `farTokens === 1`, `differingTokens <= 2`. |
-| **Pool** | **All Same-Check Codes (Arithmetic Pool)** | Remaining same-check codes that do not qualify for Tiers 1–3 (e.g., more than 1 far token, or total differing tokens $> 2$). | Computed lazily upon disclosure toggle. |
+| **Pool** | **Remaining Same-Check Codes (Arithmetic Pool)** | Remaining same-check codes that do not qualify for Tiers 1–3 (e.g., more than 1 far token, or total differing tokens $> 2$). | Computed lazily upon disclosure toggle. |
 
 ---
 
@@ -158,10 +158,10 @@ The engine operates strictly on 4-character warehouse location codes conformant 
 ### Unsupported Inputs and Typed Reasons (`UnsupportedReason`)
 
 Inputs rejected by the grammar parser produce typed reasons:
-- `relative_marker`: Codes ending in relative level symbols (e.g. `10A+`, `10A-`).
-- `fixed_code`: Fixed warehouse functional codes with hardcoded check characters (e.g. `DPA`, `SOB`).
-- `returns_alias`: Special returns aliases (e.g. `RET1`).
-- `rfc_candidate`: Regional Fulfilment Centre locations using the 6-character RFC algorithm (e.g. `LAKE`, `ABCD`).
+- `relative_marker`: Codes with a trailing relative level marker (`+` or `-`, spoken `AFTER` / `BEFORE`, e.g. `10A+`, `10A-`).
+- `fixed_code`: Fixed operational codes with pre-assigned static check characters (`DPA`, `SOB`).
+- `returns_alias`: Returns operational location aliases (`RETURNS`, `RETURN`, `RETUR`, `RETS`) using a static system check character.
+- `rfc_candidate`: Regional Fulfilment Centre 4-letter locations evaluated with a separate 2-digit check algorithm (e.g. `ABCD`, `RETS`).
 - `invalid_format`: Strings exceeding 4 characters (e.g. `10AKX`), empty strings, whitespace, punctuation, or non-grammar patterns.
 
 ---
