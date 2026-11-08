@@ -4,17 +4,22 @@ The **Voice Confusion Engine** is an independent, deterministic algorithmic modu
 
 ---
 
-## 1. Core Philosophy & The Same-Check Gate (Invariant I2)
+## 1. Core Philosophy & Architectural Invariants (I1–I7)
 
 In voice picking environments, operatives use headsets to receive pick instructions and must verbally confirm shelf locations. The check character is a NATO word (ALPHA to ZULU) calculated per location, which the headset software requests after the location is entered.
 
-- **Different-check codes**: If an operative mishears or mispronounces a location whose true check character differs from the intended location, the headset voice recognition software would normally reject the verification check. The picker cannot confirm the pick and is prompted to repeat or re-read the location.
-- **Same-check pairs**: If two distinct location codes produce the **exact same check character**, the error is not caught by the check-character step if the confusion occurred.
+- **Different-check codes**: If an operative mishears or mispronounces a location whose true check character differs from the intended location, the headset voice recognition software would normally be rejected by the check-character step. The picker cannot confirm the pick and is prompted to repeat or re-read the location.
+- **Same-check pairs**: If two distinct location codes produce the exact same check character, the error would not be caught by the check-character step if the confusion occurred.
 
-### The Same-Check Invariant (I2)
-> **Every candidate suggested in Tier 1 (Reported), Tier 2 (Model-Similar), Tier 3 (Possible), and Section (d) (Arithmetic Pool) MUST share the identical check character of the searched location.**
+### The Architectural Invariants (I1–I7)
 
-Any community report where the reported code has a *different* check character is strictly partitioned into **Section (e)** (*"Reported confusions with a different check character: the headset would normally reject these"*). It is never permitted into the ranked candidate tiers.
+1. **Invariant I1 (Single Calculator Source of Truth)**: `calculateStoreCheckChar` in `src/logic/storeCalculator.ts` is the single source of truth for all check characters and spoken strings across the system. No formula, weighting, modulo, or phonetic translation logic is duplicated inside the suggestion engine.
+2. **Invariant I2 (Same-Check Gate)**: Every candidate suggested in Tier 1 (Reported), Tier 2 (Model-Similar), Tier 3 (Possible), and Section (d) (Remaining Same-Check Codes) MUST share the identical check character of the searched location.
+3. **Invariant I3 (Digit-by-Digit Vocalisation)**: Store stockroom aisles are vocalised digit-by-digit (e.g. aisle 10 is `"ONE ZERO"`, never `"TEN"`, and aisle 08 is `"ZERO EIGHT"`).
+4. **Invariant I4 (Independent Existence Truth)**: Candidate existence is strictly `unknown` for every candidate. Every candidate is a format-valid reference code, not verified to exist in your store.
+5. **Invariant I5 (Zero Fake Metrics)**: No fabricated percentages, arbitrary score scales, or false confidence figures are generated or displayed.
+6. **Invariant I6 (Phonetic Assessment Integrity)**: All phonetic distances are derived deterministically from the articulatory feature distance table and labelled as model assessment (not physical acoustic measurements).
+7. **Invariant I7 (Different-Check Isolation)**: Any community report where the reported code has a different check character is strictly partitioned into Section (e) (*"Reported confusions with a different check character: the headset would normally reject these"*). It is never permitted into the ranked candidate tiers.
 
 ---
 
@@ -161,7 +166,7 @@ Inputs rejected by the grammar parser produce typed reasons:
 - `relative_marker`: Codes with a trailing relative level marker (`+` or `-`, spoken `AFTER` / `BEFORE`, e.g. `10A+`, `10A-`).
 - `fixed_code`: Fixed operational codes with pre-assigned static check characters (`DPA`, `SOB`).
 - `returns_alias`: Returns operational location aliases (`RETURNS`, `RETURN`, `RETUR`, `RETS`) using a static system check character.
-- `rfc_candidate`: Regional Fulfilment Centre 4-letter locations evaluated with a separate 2-digit check algorithm (e.g. `ABCD`, `RETS`).
+- `rfc_candidate`: Regional Fulfilment Centre 4-letter locations evaluated with a separate 2-digit check algorithm (e.g. `ABCD`, `LAKE`).
 - `invalid_format`: Strings exceeding 4 characters (e.g. `10AKX`), empty strings, whitespace, punctuation, or non-grammar patterns.
 
 ---
@@ -174,7 +179,7 @@ Inputs rejected by the grammar parser produce typed reasons:
 4. **Grammar is Theoretical**: The 86,520 locations represent all syntactically valid codes under the Store grammar. There is no store planogram or inventory verification; every candidate is a possible code, not verified to exist in your store.
 5. **Tier Caps & Near Threshold are Conventions**: The near threshold (`0.55`) and the 2-token difference caps are heuristic engineering conventions under the hypothesis of independent token errors.
 6. **Independent Token Error Assumption**: Positional and gapped comparators assume token errors occur independently across positions without modeling co-articulation or acoustic masking across syllables.
-7. **Seeds are Reference Examples Without Negatives**: The seven seed rows represent reference examples (`seed_observation`). There are no curated negative controls (non-confused same-check pairs) in the baseline dataset.
+7. **Seeds are Reference Examples Without Negatives**: The seven seed rows represent reference examples shipped with the app (provenance `seed_observation`); their origin is not documented in the repository. There are no curated negative controls (non-confused same-check pairs) in the baseline dataset.
 8. **Report Independence Only via `client_hash`**: Community corroborations are tracked per `client_hash`. If multiple operatives submit from a shared terminal, independence cannot be guaranteed.
 9. **No Real Headset Audio Data**: No live headset audio streams, background noise recordings, or ASR acoustic log-likelihood scores were collected.
 

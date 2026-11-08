@@ -221,6 +221,56 @@ export function classifyAlignmentTier(
   };
 }
 
+/**
+ * De-duplicates community reports by normalized (voiced, found) pair,
+ * preferring the database/injected row over the in-code seed observation.
+ */
+export function deduplicateReports(
+  seedReports: readonly VoiceConfusionReport[],
+  injectedReports: VoiceConfusionReport[] = []
+): VoiceConfusionReport[] {
+  const map = new Map<string, VoiceConfusionReport>();
+
+  // 1. Register seed observations first
+  for (const rep of seedReports) {
+    const v = (rep.voiced_location_norm || rep.voiced_location || '').toUpperCase().trim();
+    const f = (rep.found_location_norm || rep.found_location || '').toUpperCase().trim();
+    if (!v || !f) continue;
+    map.set(`${v}->${f}`, rep);
+  }
+
+  // 2. Overlay injected community/database reports (preferring database row over in-code seed)
+  for (const rep of injectedReports) {
+    const v = (rep.voiced_location_norm || rep.voiced_location || '').toUpperCase().trim();
+    const f = (rep.found_location_norm || rep.found_location || '').toUpperCase().trim();
+    if (!v || !f) continue;
+    const key = `${v}->${f}`;
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, rep);
+    } else if (existing.provenance === 'seed_observation' && rep.provenance !== 'seed_observation') {
+      // Strictly prefer database row over in-code seed observation
+      map.set(key, rep);
+    } else if (existing.provenance === rep.provenance) {
+      // Same provenance: prefer higher trust status (approved > confirmed > other) or higher confirmations
+      const existingScore = existing.status === 'approved' ? 2 : existing.status === 'confirmed' ? 1 : 0;
+      const repScore = rep.status === 'approved' ? 2 : rep.status === 'confirmed' ? 1 : 0;
+      if (repScore > existingScore || (repScore === existingScore && (rep.confirmations_count || 1) >= (existing.confirmations_count || 1))) {
+        map.set(key, rep);
+      }
+    } else {
+      const existingScore = existing.status === 'approved' ? 2 : existing.status === 'confirmed' ? 1 : 0;
+      const repScore = rep.status === 'approved' ? 2 : rep.status === 'confirmed' ? 1 : 0;
+      if (repScore > existingScore) {
+        map.set(key, rep);
+      }
+    }
+  }
+
+  return Array.from(map.values());
+}
+
 export function suggestConfusions(
   location: string,
   options?: SuggestionOptions
@@ -267,19 +317,19 @@ export function suggestConfusions(
   const { index: checkIndexMap } = buildStoreCheckIndex();
   const peerCodes = checkIndexMap.get(targetCheckChar) || [];
 
-  // Gather community reports (both default seed observations and optional injected reports)
-  const allReports: VoiceConfusionReport[] = [
-    ...SEED_REFERENCE_OBSERVATIONS,
-    ...(options?.communityReports || [])
-  ];
+  // Gather community reports (both default seed observations and optional injected reports, deduplicated)
+  const allReports: VoiceConfusionReport[] = deduplicateReports(
+    SEED_REFERENCE_OBSERVATIONS,
+    options?.communityReports
+  );
 
   // Map of reported counterparts for this input location: Map<reportedLocation, { count, report }>
   // Direction preserved: repVoiced -> repFound
   const reportedCounterparts = new Map<string, { count: number; report: VoiceConfusionReport }>();
   // Decision D9: All reported pairs involving this location that share the same check character
-  const reportedPairs: ReportedPairEntry[] = [];
+  const reportedPairsMap = new Map<string, ReportedPairEntry>();
   // INVARIANT I7: Different-check community reports for this input location
-  const differentCheckReports: DifferentCheckReport[] = [];
+  const differentCheckReportsMap = new Map<string, DifferentCheckReport>();
 
   for (const rep of allReports) {
     const repVoiced = (rep.voiced_location_norm || rep.voiced_location || '').toUpperCase();
@@ -309,7 +359,7 @@ export function suggestConfusions(
           label = 'Reported, unverified';
         }
 
-        reportedPairs.push({
+        reportedPairsMap.set(`${repFound}:voiced_to_found`, {
           reportedLocation: repFound,
           spokenText: foundCalc.spokenText,
           checkChar: targetCheckChar,
@@ -323,7 +373,7 @@ export function suggestConfusions(
         });
       } else if (foundCalc.isValid && foundCalc.checkChar !== targetCheckChar) {
         // INVARIANT I7: Different check character -> isolate in separate section
-        differentCheckReports.push({
+        differentCheckReportsMap.set(`${repFound}:voiced_to_found`, {
           inputLocation: normalized,
           inputCheckChar: targetCheckChar,
           reportedLocation: repFound,
@@ -353,7 +403,7 @@ export function suggestConfusions(
           label = 'Reported, unverified';
         }
 
-        reportedPairs.push({
+        reportedPairsMap.set(`${repVoiced}:opposite_direction`, {
           reportedLocation: repVoiced,
           spokenText: voicedCalc.spokenText,
           checkChar: targetCheckChar,
@@ -367,7 +417,7 @@ export function suggestConfusions(
         });
         // Reverse direction never adds to reportedCounterparts, so it never raises a tier!
       } else if (voicedCalc.isValid && voicedCalc.checkChar !== targetCheckChar) {
-        differentCheckReports.push({
+        differentCheckReportsMap.set(`${repVoiced}:opposite_direction`, {
           inputLocation: normalized,
           inputCheckChar: targetCheckChar,
           reportedLocation: repVoiced,
@@ -505,8 +555,8 @@ export function suggestConfusions(
     checkChar: targetCheckChar,
     spokenText: inputSpokenText,
     candidates: allVisibleCandidates,
-    reportedPairs,
-    differentCheckCommunityReports: differentCheckReports,
+    reportedPairs: Array.from(reportedPairsMap.values()),
+    differentCheckCommunityReports: Array.from(differentCheckReportsMap.values()),
     totalCheckedLocations: peerCodes.length
   };
 }

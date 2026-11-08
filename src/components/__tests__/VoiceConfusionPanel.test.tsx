@@ -208,7 +208,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
 
       // Reported counterpart 07AZ in Section (a)
       expect(screen.getAllByLabelText('Reported location 07AZ').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('Reference example').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Approved').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Similar sounding').length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Check character: YANKEE \(same check character\)/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/possible code, not verified to exist in your store/).length).toBeGreaterThan(0);

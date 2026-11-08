@@ -53,10 +53,12 @@ check-character-by-chandra/
 
 ## Voice Confusion Engine
 
-The application includes a deterministic voice confusion engine designed to alert pickers and warehouse managers to confusable shelf locations that share check characters:
-
-- **Same-Check Invariant**: Only candidates sharing the exact same check character are ranked in Tiers 1–3 and the arithmetic collision pool. Any confusions with differing check characters are isolated into a separate disclosure ("headset would normally reject these").
-- **Tiered Classification**: Candidates are segmented into **Tier 1 (Reported & Verified)**, **Tier 2 (Model-Similar)**, and **Tier 3 (Possible Sound-Alikes)** with strict 2-token difference caps (`MODEL_SIMILAR_TOKEN_THRESHOLD = 0.55`).
+- **Same-Check Invariant**: Only candidates sharing the exact same check character are ranked in Tiers 1–3 and the remaining same-check codes (arithmetic pool). Any confusions with differing check characters are isolated into a separate section ("headset would normally reject these").
+- **Tiered Classification**: Candidates are segmented into:
+  1. **Tier 1 (Reported & Verified)**: Community or moderator corroborated sound-alikes sharing check characters.
+  2. **Tier 2 (Model-Similar)**: Close acoustic matches differing by up to 2 near phonetic tokens (`MODEL_SIMILAR_TOKEN_THRESHOLD = 0.55`).
+  3. **Tier 3 (Possible Sound-Alikes)**: Acoustic matches with exactly 1 far phonetic token difference.
+  4. **Remaining Same-Check Codes (Arithmetic Pool)**: remaining same-check codes that do not qualify for Tiers 1-3 (for example more than one far token, or more than two differing tokens).
 - **Phonetic Distance Modeling**: Articulatory phonetic distance matrix comparing tokens pairwise based on place, manner, and voicing, with digit-by-digit spoken phrasing for aisles (e.g. `"ONE ZERO"`, never `"TEN"`).
 - **Benchmark Suite**: Deterministic JSONL benchmark harness runnable via `npm run benchmark:voice`.
 
