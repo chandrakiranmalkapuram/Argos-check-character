@@ -56,7 +56,7 @@ function runBenchmark() {
 
   for (let i = 0; i < rawLines.length; i++) {
     const record = JSON.parse(rawLines[i]);
-    const { a, b, mode = 'store', source, confused, count, date } = record;
+    const { a, b, mode = 'store', source, confused } = record;
 
     const checkA = getCheckChar(a, mode);
     const checkB = getCheckChar(b, mode);
@@ -111,8 +111,6 @@ function runBenchmark() {
       mode,
       source,
       confused,
-      count,
-      date,
       checkA,
       checkB,
       isSameCheck,

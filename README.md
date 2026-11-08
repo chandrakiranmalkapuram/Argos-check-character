@@ -56,15 +56,15 @@ check-character-by-chandra/
 The application includes a deterministic voice confusion engine designed to alert pickers and warehouse managers to confusable shelf locations that share check characters:
 
 - **Same-Check Invariant**: Only candidates sharing the exact same check character are ranked in Tiers 1–3 and the arithmetic collision pool. Any confusions with differing check characters are isolated into a separate disclosure ("headset would normally reject these").
-- **Tiered Classification**: Candidates are segmented into **Tier 1 (Reported & Verified)**, **Tier 2 (Model-Similar)**, and **Tier 3 (Possible Sound-Alikes)** with strict token difference caps.
+- **Tiered Classification**: Candidates are segmented into **Tier 1 (Reported & Verified)**, **Tier 2 (Model-Similar)**, and **Tier 3 (Possible Sound-Alikes)** with strict 2-token difference caps (`MODEL_SIMILAR_TOKEN_THRESHOLD = 0.55`).
 - **Phonetic Distance Modeling**: Articulatory phonetic distance matrix comparing tokens pairwise based on place, manner, and voicing, with digit-by-digit spoken phrasing for aisles (e.g. `"ONE ZERO"`, never `"TEN"`).
 - **Benchmark Suite**: Deterministic JSONL benchmark harness runnable via `npm run benchmark:voice`.
 
-For full algorithmic details, thresholds, and evidence rules, see [docs/voice_confusion_engine.md](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/docs/voice_confusion_engine.md).
+For full algorithmic details, thresholds, and evidence rules, see [docs/voice_confusion_engine.md](docs/voice_confusion_engine.md).
 
 ## Running the Project
 
-For detailed instructions and feature walkthroughs, see [HOW_TO_RUN.md](file:///Users/chandrakiran/.gemini/antigravity-ide/scratch/check-character-by-chandra/HOW_TO_RUN.md).
+For detailed instructions and feature walkthroughs, see [HOW_TO_RUN.md](HOW_TO_RUN.md).
 
 ```bash
 # Install dependencies
