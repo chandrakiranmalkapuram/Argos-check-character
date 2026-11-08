@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { VoiceConfusionPanel } from '../VoiceConfusionPanel.tsx';
 import * as adapterModule from '../../voiceConfusion/evidenceAdapter.ts';
 import * as engineModule from '../../logic/voiceConfusion/engine.ts';
@@ -160,7 +160,8 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Close sound-alikes')).toBeTruthy();
+        expect(screen.getByText('10DD')).toBeTruthy();
+        expect(screen.queryByText(/Loading community evidence/i)).toBeNull();
       });
 
       // 1. Verify 10DD (check character NOVEMBER) is present as a close sound-alike
@@ -203,7 +204,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       render(<VoiceConfusionPanel currentLocation="J7AZ" debounceMs={0} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Reported pairs/)).toBeTruthy();
+        expect(screen.getAllByText('Approved').length).toBeGreaterThan(0);
       });
 
       // Reported counterpart 07AZ in Section (a)
@@ -212,6 +213,137 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       expect(screen.getAllByText('Similar sounding').length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Check character: YANKEE \(same check character\)/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/possible code, not verified to exist in your store/).length).toBeGreaterThan(0);
+    });
+
+    it('asserts the exact rendered label in Section (a) for each of: seed, approved, confirmed, community_submitted, other reason', async () => {
+      // 1. Seed observation (when no overriding evidence is returned)
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      const { unmount: unmount1 } = render(<VoiceConfusionPanel currentLocation="J7AZ" debounceMs={0} />);
+      await waitFor(() => {
+        expect(document.querySelector('.vc-section--reported-pairs')).toBeTruthy();
+        expect(screen.queryByText(/Loading community evidence/i)).toBeNull();
+      });
+      const sec1 = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+      const seedBadge = within(sec1).getByText('Reference example');
+      expect(seedBadge).toBeTruthy();
+      expect(seedBadge.className).toContain('vc-badge--evidence');
+      unmount1();
+
+      // 2. Approved report
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [
+          baseReport({
+            voiced_location: 'J7AZ',
+            found_location: '07AZ',
+            reason: 'similar_sounding',
+            status: 'approved',
+            provenance: 'community_submitted'
+          })
+        ],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      const { unmount: unmount2 } = render(<VoiceConfusionPanel currentLocation="J7AZ" debounceMs={0} />);
+      await waitFor(() => {
+        const sec = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+        expect(within(sec).queryByText('Approved')).toBeTruthy();
+      });
+      const sec2 = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+      const approvedBadge = within(sec2).getByText('Approved');
+      expect(approvedBadge.className).toContain('vc-badge--evidence');
+      unmount2();
+
+      // 3. Confirmed report
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [
+          baseReport({
+            voiced_location: 'J7AZ',
+            found_location: '07AZ',
+            reason: 'similar_sounding',
+            status: 'confirmed',
+            provenance: 'community_submitted'
+          })
+        ],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      const { unmount: unmount3 } = render(<VoiceConfusionPanel currentLocation="J7AZ" debounceMs={0} />);
+      await waitFor(() => {
+        const sec = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+        expect(within(sec).queryByText('Confirmed')).toBeTruthy();
+      });
+      const sec3 = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+      const confirmedBadge = within(sec3).getByText('Confirmed');
+      expect(confirmedBadge.className).toContain('vc-badge--evidence');
+      unmount3();
+
+      // 4. Community submitted (unverified)
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [
+          baseReport({
+            voiced_location: 'J7AZ',
+            found_location: '07AZ',
+            reason: 'similar_sounding',
+            status: 'community_submitted',
+            provenance: 'community_submitted',
+            confirmations_count: 2
+          })
+        ],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      const { unmount: unmount4 } = render(<VoiceConfusionPanel currentLocation="J7AZ" debounceMs={0} />);
+      await waitFor(() => {
+        const sec = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+        expect(within(sec).queryByText('Reported, unverified')).toBeTruthy();
+      });
+      const sec4 = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+      const unverifiedBadge = within(sec4).getByText('Reported, unverified');
+      expect(unverifiedBadge.className).toContain('vc-badge--evidence');
+      unmount4();
+
+      // 5. 'other' reason (or similar_check_character)
+      vi.spyOn(adapterModule, 'fetchEvidenceForLocation').mockResolvedValue({
+        kind: 'available',
+        reports: [
+          baseReport({
+            voiced_location: 'J7AZ',
+            found_location: '07AZ',
+            reason: 'other',
+            status: 'approved',
+            provenance: 'community_submitted'
+          })
+        ],
+        isTruncated: false,
+        isHighTrustTruncated: false,
+        isUnverifiedTruncated: false
+      });
+
+      const { unmount: unmount5 } = render(<VoiceConfusionPanel currentLocation="J7AZ" debounceMs={0} />);
+      await waitFor(() => {
+        const sec = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+        expect(within(sec).queryByText('Reported (layout / check-character), does not affect ranking')).toBeTruthy();
+      });
+      const sec5 = document.querySelector('.vc-section--reported-pairs') as HTMLElement;
+      const otherBadge = within(sec5).getByText('Reported (layout / check-character), does not affect ranking');
+      expect(otherBadge.className).toContain('vc-badge--evidence');
+      unmount5();
     });
 
     it('enforces Decision D14: suppresses details for seed observations, and renders 200-char truncated plain text for other reports inside collapsed disclosure', async () => {
@@ -246,7 +378,7 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       render(<VoiceConfusionPanel currentLocation="10AK" debounceMs={0} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Reported pairs/)).toBeTruthy();
+        expect(screen.getByText("Reporter's note (free text, unverified)")).toBeTruthy();
       });
 
       // Labelled disclosure exists
@@ -263,7 +395,8 @@ describe('Milestone 6: VoiceConfusionPanel Component', () => {
       render(<VoiceConfusionPanel currentLocation="08MN" debounceMs={0} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Reported pairs/)).toBeTruthy();
+        expect(screen.getByText('20AN')).toBeTruthy();
+        expect(screen.queryByText(/Loading community evidence/i)).toBeNull();
       });
 
       // Seed observation details must NOT be rendered anywhere

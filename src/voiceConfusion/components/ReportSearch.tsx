@@ -455,9 +455,9 @@ export const ReportSearch: React.FC<ReportSearchProps> = ({
                     <span>{getReasonLabel(report.reason)}</span>
                   </div>
 
-                  {report.details && (
+                  {report.provenance !== 'seed_observation' && report.details && (
                     <div className="vc-report-details">
-                      <strong>Worker Notes:</strong> {report.details}
+                      <strong>Reporter&apos;s note (free text, unverified):</strong> {report.details}
                     </div>
                   )}
 
