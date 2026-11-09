@@ -1,92 +1,52 @@
 # Check Character by Chandra
 
-A responsive, mobile-first web application built with **React**, **TypeScript**, and **Vite** for stockroom shelf check-character calculations.
+A responsive stockroom location check-character calculator built with React, TypeScript, and Vite. It helps calculate and look up check characters used by voice-directed picking systems, and explore reported voice-confusion risks.
 
-## Overview
-Voice-directed picking headsets in high-volume stockrooms (such as Argos) prompt workers to read out shelf locations and verify the corresponding **check character** (which functions as a validation password). If a shelf label is missing or damaged, or if stock is located on a mezzanine level, workers can determine the correct check character using this tool.
+## Features
 
-## Key Features
-- **Store Location Calculation**: Verified weighted ASCII modulo 26 algorithm mapping to NATO phonetic alphabet (ALPHA to ZULU).
-- **RFC Location Calculation**: Regional Fulfilment Centre 2-digit algorithm (base 45 + weighted alphabet indices modulo 99).
-- **Reverse Lookup**: Inverted index searching 67,600 store locations (00AA–99ZZ) grouped by aisle for any phonetic check character.
-- **Voice Mistake Alerts**: Identifies confusable locations that share the same check character due to single-letter phonetic errors (e.g., JEWELLERY heard as ZERO) or swapped adjacent digits.
-- **Voice Confusion Risk System**: Shared, persistent warehouse misrecognition reporting backed by Supabase PostgreSQL with open public submissions (no login required), advisory transaction deduplication, community corroboration (+1 confirmations), automatic flag-threshold demotion, public active search, and an authenticated admin moderation workflow.
-- **Authoritative Warehouse Reference Data**: Seven seeded reference observations loaded idempotently in PostgreSQL, clearly badged as 📚 Reference Seed (`seed_observation`) and distinguished from demonstration samples.
-- **Phonetic Pronunciation & Audio**: Displays voice picking phrasing (e.g., `"ONE ZERO ALPHA KILO"`) with one-click Web Speech audio playback.
-- **Recent Search History**: Persisted in local browser storage (`localStorage`) with one-click reload and deletion.
-- **Independent Clean-Room Architecture**: Pure calculation logic in `src/logic/` completely decoupled from React UI components.
+- Calculate Store check characters using the weighted ASCII modulo 26 algorithm and NATO phonetic alphabet.
+- Calculate RFC (Regional Fulfilment Centre) check characters using its weighted alphabet-index algorithm.
+- Automatically compare Store and RFC results for applicable four-letter codes, or select a calculation mode explicitly.
+- Reverse-search the 67,600 standard Store locations (`00AA`–`99ZZ`) by NATO check-character word, grouped by aisle.
+- View same-check candidate warnings and ranked voice-confusion suggestions. Candidates are algorithmic possibilities, not confirmation that a location exists.
+- Search and contribute to the shared Voice Confusion Reference, with community corroboration, flagging, and protected moderation features.
+- Hear spoken location phrases with browser speech synthesis and revisit recent searches saved in local browser storage.
 
-## Project Structure
-```
-check-character-by-chandra/
-├── supabase/
-│   └── migrations/          # PostgreSQL migrations:
-│                            # 1. 20261014000000: Base schema, indexes & duplicate constraints
-│                            # 2. 20261014000001: User roles, auth & RLS
-│                            # 3. 20261014000002: Public submissions & rate limiting
-│                            # 4. 20261019000000: Shared community reference & seed observations
-├── src/
-│   ├── assets/              # Original branding vector assets
-│   ├── components/          # Core React UI components
-│   ├── hooks/               # Custom React hooks (localStorage search history)
-│   ├── logic/               # Independent check-character calculation engine
-│   ├── voiceConfusion/      # Voice Confusion Risk reporting system
-│   │   ├── __tests__/       # Comprehensive test suite (migrations, normalizer, RPCs, moderation)
-│   │   ├── components/      # Submission form, preview modal, search, moderator portal
-│   │   ├── normalizer.ts    # Case-insensitive whitespace-trimming (preserves O/0 & I/1)
-│   │   ├── service.ts       # Supabase client / offline fallback data service
-│   │   ├── supabaseClient.ts # Zero-trust safe client
-│   │   ├── types.ts         # TypeScript interfaces
-│   │   ├── validation.ts    # Configurable input validation
-│   │   └── VoiceConfusionView.tsx # Feature orchestrator
-│   ├── styles/              # Design tokens & mobile-first vanilla CSS
-│   ├── App.tsx              # Main application orchestrator
-│   └── main.tsx             # Application mount point
-├── docs/
-│   └── voice_confusion_engine.md # Detailed specification of tiers, thresholds, and evidence rules
-├── VOICE_CONFUSION_SETUP.md # Complete Supabase, RLS, Cloudflare & moderator guide
-├── HOW_TO_RUN.md            # Execution, testing, and production setup guide
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
-```
+The calculator works locally without database configuration. Shared voice-confusion data requires a Supabase project; see [VOICE_CONFUSION_SETUP.md](VOICE_CONFUSION_SETUP.md) for database, environment, and access setup.
 
-## Voice Confusion Engine
+## Quick start
 
-- **Same-Check Invariant**: Only candidates sharing the exact same check character are ranked in Tiers 1–3 and the remaining same-check codes (arithmetic pool). Any confusions with differing check characters are isolated into a separate section ("headset would normally reject these").
-- **Tiered Classification**: Candidates are segmented into:
-  1. **Tier 1 (Reported & Verified)**: Community or moderator corroborated sound-alikes sharing check characters.
-  2. **Tier 2 (Model-Similar)**: Close acoustic matches differing by up to 2 near phonetic tokens (`MODEL_SIMILAR_TOKEN_THRESHOLD = 0.55`).
-  3. **Tier 3 (Possible Sound-Alikes)**: Acoustic matches with exactly 1 far phonetic token difference.
-  4. **Remaining Same-Check Codes (Arithmetic Pool)**: remaining same-check codes that do not qualify for Tiers 1-3 (for example more than one far token, or more than two differing tokens).
-- **Phonetic Distance Modeling**: Articulatory phonetic distance matrix comparing tokens pairwise based on place, manner, and voicing, with digit-by-digit spoken phrasing for aisles (e.g. `"ONE ZERO"`, never `"TEN"`).
-- **Benchmark Suite**: Deterministic JSONL benchmark harness runnable via `npm run benchmark:voice`.
-
-For full algorithmic details, thresholds, and evidence rules, see [docs/voice_confusion_engine.md](docs/voice_confusion_engine.md).
-
-## Running the Project
-
-For detailed instructions and feature walkthroughs, see [HOW_TO_RUN.md](HOW_TO_RUN.md).
+Requirements: Node.js 18 or later and npm 9 or later.
 
 ```bash
-# Install dependencies
 npm install
-
-# Run development server
 npm run dev
-
-# Run unit tests
-npm test
-
-# Run strict TypeScript and production build
-npm run build
-
-# Run linter
-npm run lint
-
-# Run voice confusion benchmark
-npm run benchmark:voice
 ```
 
+Open the local URL printed by Vite (by default, `http://localhost:5173`). To configure shared Supabase persistence for local development, set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in a local `.env` file. Only use the public anonymous key in the frontend; never expose a Supabase service-role key.
+
+## Development commands
+
+| Command | Description |
+| --- | --- |
+| `npm test` | Run the standard Vitest suite |
+| `npm run test:full` | Run the extended verification suite |
+| `npm run build` | Type-check and create the production build in `dist/` |
+| `npm run lint` | Run Oxlint |
+| `npm run preview` | Preview the production build locally |
+| `npm run benchmark:voice` | Run the voice-confusion benchmark |
+| `npm run deploy` | Deploy using the configured Wrangler setup |
+
+## Project guide
+
+- `src/logic/` — calculation, validation, reverse lookup, and candidate-ranking logic.
+- `src/logic/voiceConfusion/` — voice-confusion grammar, phonetics, and suggestion engine.
+- `src/voiceConfusion/` — reporting, search, persistence, and moderation features.
+- `supabase/migrations/` — database schema, access policies, and reference data migrations.
+- [HOW_TO_RUN.md](HOW_TO_RUN.md) — usage walkthrough and local/production instructions.
+- [docs/voice_confusion_engine.md](docs/voice_confusion_engine.md) — engine rules, evidence handling, and model limitations.
+- [VOICE_CONFUSION_SETUP.md](VOICE_CONFUSION_SETUP.md) — Supabase setup, security model, and moderator provisioning.
+
 ## Disclaimer
-*Check Character by Chandra* is an independent educational and warehouse productivity tool. It is not affiliated with, sponsored by, or endorsed by Argos or J Sainsbury plc. No proprietary logos or trademarks are used.
+
+*Check Character by Chandra* is an independent educational and warehouse productivity tool. It is not affiliated with, sponsored by, or endorsed by Argos or J Sainsbury plc.
