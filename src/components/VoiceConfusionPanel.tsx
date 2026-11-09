@@ -26,6 +26,7 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
   const [committedLocation, setCommittedLocation] = useState<string>('');
   const [evidence, setEvidence] = useState<EvidenceResult | null>(null);
   const [isLoadingEvidence, setIsLoadingEvidence] = useState<boolean>(false);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
 
   // Arithmetic pool lazy computation & pagination state
   const [isArithmeticOpen, setIsArithmeticOpen] = useState<boolean>(false);
@@ -43,6 +44,7 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
       setCommittedLocation(trimmed);
       setEvidence(null);
       setIsLoadingEvidence(trimmed.length > 0 && parseLocationCode(trimmed).kind === 'supported');
+      setIsMobileExpanded(false);
       setArithmeticPage(1);
       setArithmeticFilter('');
       setIsArithmeticOpen(false);
@@ -140,22 +142,40 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
 
     return (
       <section
-        className="vc-panel vc-panel--invalid"
+        className={`vc-panel vc-panel--invalid vc-panel--mobile-disclosure ${isMobileExpanded ? 'vc-panel--mobile-expanded' : ''}`}
         aria-labelledby="vc-panel-heading"
         role="region"
       >
-        <div className="vc-panel-header">
-          <h3 id="vc-panel-heading" className="vc-panel-title">
-            Voice Confusion Risk Analysis
-          </h3>
-        </div>
-        <div className="vc-alert vc-alert--warning" role="alert">
-          <svg className="vc-alert-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <span className="vc-alert-text">{errorMsg}</span>
+        <button
+          type="button"
+          className="vc-mobile-summary"
+          aria-expanded={isMobileExpanded}
+          aria-controls="voice-confusion-panel-details"
+          onClick={() => setIsMobileExpanded(expanded => !expanded)}
+        >
+          Voice confusion: Unsupported input · Tap to review
+        </button>
+        <p
+          className="vc-mobile-state"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          aria-label={errorMsg}
+        />
+        <div className="vc-panel-content" id="voice-confusion-panel-details">
+          <div className="vc-panel-header">
+            <h3 id="vc-panel-heading" className="vc-panel-title">
+              Voice Confusion Risk Analysis
+            </h3>
+          </div>
+          <div className="vc-alert vc-alert--warning" role="alert">
+            <svg className="vc-alert-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span className="vc-alert-text">{errorMsg}</span>
+          </div>
         </div>
       </section>
     );
@@ -167,17 +187,52 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
   const possibleMatches = suggestionResult.candidates.filter(c => c.tier === 'tier3_possible');
   const reportedPairs = suggestionResult.reportedPairs || [];
   const differentCheckReports = suggestionResult.differentCheckCommunityReports || [];
-
   const isSpecialFacilityInput =
     suggestionResult.parsed?.kind === 'supported' &&
     suggestionResult.parsed.pattern === 'cash_office_collection_point';
+  const summaryStatus = isLoadingEvidence
+    ? 'Loading community evidence...'
+    : evidence?.kind === 'unavailable'
+    ? 'community evidence unavailable'
+    : evidence?.kind === 'available' && evidence.isTruncated
+    ? evidence.isHighTrustTruncated && evidence.isUnverifiedTruncated
+      ? 'results may be incomplete: some approved reports and older unverified reports are not shown'
+      : evidence.isHighTrustTruncated
+      ? 'results may be incomplete: some approved reports may be missing'
+      : 'results may be incomplete: some older unverified reports are not shown'
+    : '';
+  const noCloseMessage = isSpecialFacilityInput
+    ? 'Special facility codes (Cash Office / Collection Point) use 3 spoken words and have no close 4-word standard sound-alikes under the model threshold.'
+    : 'No same-check-character code is phonetically close enough under the current model. This does not mean none exists.';
+  const compactSummary = closeSoundAlikes.length === 0
+    ? `Voice confusion: No close sound-alikes · ${possibleMatches.length} possible · Tap to review`
+    : `Voice confusion: ${closeSoundAlikes.length} close sound-alike${closeSoundAlikes.length === 1 ? '' : 's'} · ${possibleMatches.length} possible · Tap to review`;
 
   return (
     <section
-      className="vc-panel"
+      className={`vc-panel vc-panel--mobile-disclosure ${isMobileExpanded ? 'vc-panel--mobile-expanded' : ''}`}
       aria-labelledby="vc-panel-heading"
       role="region"
     >
+      <button
+        type="button"
+        className="vc-mobile-summary"
+        aria-expanded={isMobileExpanded}
+        aria-controls="voice-confusion-panel-details"
+        onClick={() => setIsMobileExpanded(expanded => !expanded)}
+      >
+        {compactSummary}
+      </button>
+      {(closeSoundAlikes.length === 0 || summaryStatus) && (
+        <p
+          className="vc-mobile-state"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          aria-label={[closeSoundAlikes.length === 0 ? noCloseMessage : '', summaryStatus].filter(Boolean).join(' ')}
+        />
+      )}
+      <div className="vc-panel-content" id="voice-confusion-panel-details">
       <div className="vc-panel-header">
         <div className="vc-panel-title-group">
           <h3 id="vc-panel-heading" className="vc-panel-title">
@@ -199,7 +254,7 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
       </div>
 
       {/* State Alerts */}
-      {evidence?.kind === 'unavailable' && (
+          {evidence?.kind === 'unavailable' && (
         <div className="vc-alert vc-alert--info" role="status">
           <svg className="vc-alert-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <circle cx="12" cy="12" r="10" />
@@ -441,6 +496,7 @@ export const VoiceConfusionPanel: React.FC<VoiceConfusionPanelProps> = ({
           </div>
         </details>
       )}
+      </div>
     </section>
   );
 };

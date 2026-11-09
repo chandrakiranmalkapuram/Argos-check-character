@@ -99,7 +99,8 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="characters"
-          spellCheck="false"
+          spellCheck={false}
+          enterKeyHint="done"
           aria-describedby="guidance-hint mode-helper-text"
         />
 

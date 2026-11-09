@@ -132,13 +132,13 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
         <span className="spoken-phrase">"{result.spokenText}"</span>
       </div>
 
-      <div>
-        <button
-          type="button"
-          className="breakdown-toggle-btn"
-          onClick={() => setShowBreakdown(prev => !prev)}
-          aria-expanded={showBreakdown}
-        >
+      <details
+        className="result-breakdown-disclosure"
+        onToggle={(event: React.SyntheticEvent<HTMLDetailsElement>) => {
+          setShowBreakdown(event.currentTarget.open);
+        }}
+      >
+        <summary className="breakdown-toggle-btn" aria-expanded={showBreakdown}>
           <svg
             width="14"
             height="14"
@@ -152,11 +152,13 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
           >
             <polyline points="6 9 12 15 18 9" />
           </svg>
-          <span>{showBreakdown ? 'Hide Formula Breakdown' : 'Show Mathematical Breakdown'}</span>
-        </button>
+          <span className="breakdown-label--desktop">
+            {showBreakdown ? 'Hide Formula Breakdown' : 'Show Mathematical Breakdown'}
+          </span>
+          <span className="breakdown-label--mobile">Show calculation</span>
+        </summary>
 
-        {showBreakdown && (
-          <div className="breakdown-drawer fade-in" style={{ marginTop: '0.5rem' }}>
+        <div className="breakdown-drawer fade-in" style={{ marginTop: '0.5rem' }}>
             <div style={{ color: 'var(--blue-400)', fontWeight: 600, marginBottom: '0.25rem' }}>
               {result.formulaDescription}
             </div>
@@ -165,9 +167,8 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
                 {step}
               </div>
             ))}
-          </div>
-        )}
-      </div>
+        </div>
+      </details>
     </div>
   );
 };

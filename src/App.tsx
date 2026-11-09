@@ -121,7 +121,8 @@ export function App() {
               <line x1="8" y1="18" x2="8.01" y2="18" />
               <line x1="12" y1="18" x2="12.01" y2="18" />
             </svg>
-            <span>Check Character Calculator</span>
+            <span className="app-nav-tab-label--desktop">Check Character Calculator</span>
+            <span className="app-nav-tab-label--mobile">Calculator</span>
           </button>
 
           <button
@@ -137,56 +138,61 @@ export function App() {
               <line x1="12" y1="19" x2="12" y2="23" />
               <line x1="8" y1="23" x2="16" y2="23" />
             </svg>
-            <span>Voice Confusion Reference</span>
+            <span className="app-nav-tab-label--desktop">Voice Confusion Reference</span>
+            <span className="app-nav-tab-label--mobile">Voice reference</span>
           </button>
         </nav>
 
         {activeAppTab === 'calculator' ? (
           <>
-            <CalculatorInput
-              query={query}
-              onQueryChange={setQuery}
-              activeMode={activeMode}
-              onModeChange={setActiveMode}
-              guidanceText={evaluation.guidance}
-            />
+            <div className="calculator-sticky-stack">
+              <CalculatorInput
+                query={query}
+                onQueryChange={setQuery}
+                activeMode={activeMode}
+                onModeChange={setActiveMode}
+                guidanceText={evaluation.guidance}
+              />
+
+              {!evaluation.reverseResult && (
+                <>
+                  {/* Dual Store & RFC Results (e.g. for 4-letter locations like ABCD) */}
+                  {evaluation.storeResult && evaluation.rfcResult ? (
+                    <div className="dual-results-wrapper">
+                      <div className="dual-results-banner" role="status">
+                        <div className="dual-banner-badge">Dual System Comparison</div>
+                        <p className="dual-banner-text">
+                          <strong>4-Letter Location Detected:</strong> This code is used in both systems with different check character algorithms.
+                          <strong> Store</strong> uses a NATO word (e.g. <em>{evaluation.storeResult.checkChar}</em>), while <strong>RFC</strong> uses two spoken digits (e.g. <em>{evaluation.rfcResult.checkChar}</em>).
+                        </p>
+                      </div>
+                      <div className="dual-results-grid">
+                        <ResultCard result={evaluation.storeResult} />
+                        <ResultCard result={evaluation.rfcResult} />
+                      </div>
+                    </div>
+                  ) : evaluation.storeResult ? (
+                    <ResultCard result={evaluation.storeResult} />
+                  ) : evaluation.rfcResult ? (
+                    <ResultCard result={evaluation.rfcResult} />
+                  ) : null}
+
+                  {/* Unified Voice Confusion Panel (Milestone 6) */}
+                  <VoiceConfusionPanel
+                    currentLocation={query}
+                    onSelectLocation={handleSelectQuery}
+                    onOpenVoiceConfusionReports={handleOpenVoiceConfusionForLocation}
+                  />
+                </>
+              )}
+            </div>
 
             {/* Reverse Lookup View */}
-            {evaluation.reverseResult ? (
+            {evaluation.reverseResult && (
               <ReverseLookupView
                 result={evaluation.reverseResult}
                 onSelectLocation={handleSelectQuery}
               />
-            ) : (
-              <>
-                {/* Dual Store & RFC Results (e.g. for 4-letter locations like ABCD) */}
-                {evaluation.storeResult && evaluation.rfcResult ? (
-                  <div className="dual-results-wrapper">
-                    <div className="dual-results-banner" role="status">
-                      <div className="dual-banner-badge">Dual System Comparison</div>
-                      <p className="dual-banner-text">
-                        <strong>4-Letter Location Detected:</strong> This code is used in both systems with different check character algorithms.
-                        <strong> Store</strong> uses a NATO word (e.g. <em>{evaluation.storeResult.checkChar}</em>), while <strong>RFC</strong> uses two spoken digits (e.g. <em>{evaluation.rfcResult.checkChar}</em>).
-                      </p>
-                    </div>
-                    <div className="dual-results-grid">
-                      <ResultCard result={evaluation.storeResult} />
-                      <ResultCard result={evaluation.rfcResult} />
-                    </div>
-                  </div>
-                ) : evaluation.storeResult ? (
-                  <ResultCard result={evaluation.storeResult} />
-                ) : evaluation.rfcResult ? (
-                  <ResultCard result={evaluation.rfcResult} />
-                ) : null}
-
-                {/* Unified Voice Confusion Panel (Milestone 6) */}
-                <VoiceConfusionPanel
-                  currentLocation={query}
-                  onSelectLocation={handleSelectQuery}
-                  onOpenVoiceConfusionReports={handleOpenVoiceConfusionForLocation}
-                />
-              </>
             )}
 
             {/* Local Storage Search History */}
