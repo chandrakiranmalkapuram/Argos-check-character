@@ -629,3 +629,301 @@
 .vc-state-box svg {
   color: var(--slate-400);
 }
+
+/* Compact calculator experience while the mobile keyboard is open. */
+@media (max-width: 600px) {
+  .app-header {
+    position: static;
+    padding: 0 0.625rem;
+    box-shadow: none;
+  }
+
+  .header-brand {
+    gap: 0.5rem;
+  }
+
+  .brand-title {
+    font-size: 0.95rem;
+  }
+
+  .brand-sub,
+  .header-actions > div > span {
+    display: none;
+  }
+
+  .header-icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .app-container {
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem 1rem;
+  }
+
+  .app-nav-tabs {
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    border-radius: var(--radius-md);
+  }
+
+  .app-nav-tab {
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.25rem 0.35rem;
+    gap: 0.3rem;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+  }
+
+  .app-nav-tab svg {
+    display: none;
+  }
+
+  .app-nav-tab-label--desktop {
+    display: none;
+  }
+
+  .app-nav-tab-label--mobile {
+    display: inline;
+  }
+
+  .calculator-sticky-stack {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0 -0.25rem;
+    padding: 0.25rem;
+    background: var(--slate-50);
+    border-bottom: 1px solid var(--slate-200);
+  }
+
+  .calculator-sticky-stack:has(.vc-panel--mobile-expanded) {
+    position: static;
+  }
+
+  .input-card {
+    gap: 0.25rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: var(--radius-md);
+  }
+
+  .input-label-row {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .mode-tabs {
+    display: flex;
+    width: 100%;
+    gap: 0.2rem;
+    padding: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .mode-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-btn {
+    flex: 1 0 auto;
+    min-width: 4.25rem;
+    min-height: 44px;
+    padding: 0.25rem 0.45rem;
+    font-size: 0.75rem;
+  }
+
+  .location-input {
+    min-height: 48px;
+    padding: 0.35rem 2.8rem 0.35rem 0.65rem;
+    font-size: 1.4rem;
+  }
+
+  .clear-input-btn {
+    width: 44px;
+    height: 44px;
+    right: 0.15rem;
+  }
+
+  .input-feedback-container {
+    display: block !important;
+    min-height: 1rem;
+    overflow: hidden;
+  }
+
+  .input-helper-text,
+  .input-status-hint {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.7rem !important;
+    line-height: 1rem;
+  }
+
+  .input-feedback-container:has(#calculation-status) #guidance-hint {
+    display: none;
+  }
+
+  .chips-row {
+    display: none;
+  }
+
+  .calculator-sticky-stack .result-card {
+    gap: 0.2rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--radius-md);
+  }
+
+  .calculator-sticky-stack .result-header,
+  .calculator-sticky-stack .check-char-title,
+  .calculator-sticky-stack .check-char-format-hint,
+  .calculator-sticky-stack .spoken-label {
+    display: none;
+  }
+
+  .calculator-sticky-stack .check-character-display {
+    padding: 0;
+  }
+
+  .calculator-sticky-stack .check-char-value {
+    font-size: clamp(2rem, 8vw, 2.4rem);
+    line-height: 1;
+  }
+
+  .calculator-sticky-stack .spoken-text-container {
+    display: block;
+    padding: 0.2rem 0.45rem;
+    text-align: center;
+  }
+
+  .calculator-sticky-stack .spoken-phrase {
+    display: block;
+    overflow-wrap: anywhere;
+    font-size: 0.875rem;
+    line-height: 1.25;
+  }
+
+  .calculator-sticky-stack .result-breakdown-disclosure {
+    position: relative;
+    z-index: 1;
+  }
+
+  .calculator-sticky-stack .breakdown-toggle-btn {
+    min-height: 44px;
+    justify-content: center;
+    width: 100%;
+    padding: 0.2rem;
+    color: var(--slate-200);
+  }
+
+  .breakdown-label--desktop {
+    display: none;
+  }
+
+  .breakdown-label--mobile {
+    display: inline;
+  }
+
+  .vc-panel--mobile-disclosure {
+    gap: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .vc-mobile-summary {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.35rem 0.55rem;
+    overflow: hidden;
+    border: 1px solid var(--blue-200);
+    border-radius: var(--radius-md);
+    background: var(--blue-50);
+    color: var(--navy-900);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .vc-mobile-summary:focus-visible,
+  .app-nav-tab:focus-visible,
+  .tab-btn:focus-visible {
+    outline: 3px solid var(--blue-600);
+    outline-offset: 2px;
+  }
+
+  .vc-mobile-state {
+    display: block;
+    margin: 0;
+    color: var(--slate-700);
+    font-size: 0.7rem;
+    line-height: 1.2;
+  }
+
+  .vc-mobile-state::before {
+    content: attr(aria-label);
+  }
+
+  .vc-panel-content {
+    display: none;
+  }
+
+  .vc-panel--mobile-expanded .vc-panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 0.375rem;
+    padding: 0.75rem;
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-md);
+    background: var(--white);
+  }
+}
+
+@media (min-width: 601px) {
+  .app-nav-tab-label--mobile,
+  .vc-mobile-summary,
+  .vc-mobile-state {
+    display: none;
+  }
+
+  .app-nav-tab-label--desktop {
+    display: inline;
+  }
+
+  .calculator-sticky-stack {
+    display: contents;
+  }
+
+  .vc-panel-content {
+    display: contents;
+  }
+
+  .breakdown-label--mobile {
+    display: none;
+  }
+
+  .breakdown-label--desktop {
+    display: inline;
+  }
+}
